@@ -5,7 +5,7 @@ screen — a small card floats up, you type, it saves itself. That's the whole a
 
 **100% free. Open source. Your notes are plain text files you own forever.**
 
-<!-- TODO: add a screenshot or short screen-recording gif here — it sells the app better than any paragraph -->
+![The floating note card, opened with Option+Period](docs/screenshot.png)
 
 ## Why "Tenote"?
 
