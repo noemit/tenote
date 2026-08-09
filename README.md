@@ -1,7 +1,7 @@
 # Tenote
 
 The simplest notes app for Mac. Press **⌥.** (Option+Period) anywhere on your
-screen — a small card floats up, you type, it saves itself. That's the whole app.
+screen. A small card floats up, you type, it saves itself. That's the whole app.
 
 **100% free. Open source. Your notes are plain text files you own forever.**
 
@@ -10,7 +10,7 @@ screen — a small card floats up, you type, it saves itself. That's the whole a
 ## Why "Tenote"?
 
 The first working version was built for about **ten cents** of AI tokens. It felt
-right for an app that proves good software can cost almost nothing to make — so it
+right for an app that proves good software can cost almost nothing to make, so it
 costs you nothing to use. Free forever, MIT licensed.
 
 *(iPhone app: coming soon.)*
@@ -18,30 +18,30 @@ costs you nothing to use. Free forever, MIT licensed.
 ## What it does
 
 - One hotkey (**⌥.**) opens and closes it, from inside any app
-- Every open is a fresh note — whatever you were writing is already saved
-- Notes save as **Markdown files** in `~/Documents/Tenote Notes` — readable by
+- Every open is a fresh note. Whatever you were writing is already saved
+- Notes save as **Markdown files** in `~/Documents/Tenote Notes`. Readable by
   anything, syncable anywhere
 - Always on top, on the screen where your cursor is
 - Auto-saves as you type; every note is timestamped
 - Paste images straight into a note
 - `#tags` become little chips at the bottom
 - Markdown preview, a last-3-notes strip, an all-notes view, 5 themes
-- Lives quietly in your menu bar — no Dock icon, no clutter
+- Lives quietly in your menu bar. No Dock icon, no clutter
 
 No accounts. No cloud. No tracking. No subscription.
 
 ## Install
 
-### Option A — download the app (easiest)
+### Option A: download the app (easiest)
 
 1. Go to the [Releases page](../../releases/latest) and download `Tenote-x.y.z.dmg`.
 2. Open the dmg and drag **Tenote** into **Applications**.
 3. The first time you open it: **right-click → Open → Open**.
    (macOS warns about apps downloaded from the internet; this one-time step says
-   you trust it. The app is unsigned — it's free software, nobody paid Apple $99.)
-4. Done — press **⌥.** anywhere. The hotkey is built in, nothing else to set up.
+   you trust it. The app is unsigned. It's free software, so nobody paid Apple $99.)
+4. Done. Press **⌥.** anywhere. The hotkey is built in, nothing else to set up.
 
-### Option B — build from source
+### Option B: build from source
 
 You need [Node.js](https://nodejs.org) (22 or newer) and git. Then:
 
@@ -54,7 +54,7 @@ npm start
 
 The ⌥. hotkey is built in, so you can stop here. **Recommended:** run one more
 command to set up [skhd](https://github.com/koekeishiya/skhd), a tiny free hotkey
-helper — with it, ⌥. works **even when Tenote isn't running yet** (it starts the
+helper. With it, ⌥. works **even when Tenote isn't running yet** (it starts the
 app for you):
 
 ```bash
@@ -68,7 +68,7 @@ What `npm run setup` does (and nothing else):
 2. Adds **one line** to `~/.skhdrc` pointing ⌥. at Tenote.
 3. Starts skhd.
 
-Afterwards macOS asks for **one permission** — skhd needs it to see your key
+Afterwards macOS asks for **one permission**. skhd needs it to see your key
 presses: **System Settings → Privacy & Security → Accessibility → turn on "skhd".**
 Then press ⌥. anywhere and a note card appears.
 
@@ -102,18 +102,18 @@ Drive and your notes sync themselves. Pasted images live in the `images/` subfol
 ## Uninstall
 
 Quit from the menu-bar icon, then drag Tenote out of Applications (or stop
-`npm start`). Your notes stay in `~/Documents/Tenote Notes` — delete that folder
+`npm start`). Your notes stay in `~/Documents/Tenote Notes`. Delete that folder
 too if you don't want them. If you ran `npm run setup`: remove the Tenote lines
 from `~/.skhdrc`, then run `skhd --stop-service`.
 
 ## Troubleshooting
 
-- **⌥. does nothing** — another app may have grabbed the shortcut. Check
+- **⌥. does nothing.** Another app may have grabbed the shortcut. Check
   `~/Library/Logs/Tenote/main.log` for `shortcut` lines; the skhd setup (above)
   usually sidesteps this.
-- **The skhd binding stopped working** — run `skhd --restart-service`, and check
+- **The skhd binding stopped working.** Run `skhd --restart-service`, and check
   that the Accessibility permission is still on.
-- **The window won't come forward over a fullscreen app** — click the menu-bar
+- **The window won't come forward over a fullscreen app.** Click the menu-bar
   icon instead.
 
 ## For developers
@@ -150,4 +150,4 @@ socket (`scripts/tenotectl.js`).
 
 ## License
 
-MIT — do whatever you want with it. See [LICENSE](LICENSE).
+MIT. Do whatever you want with it. See [LICENSE](LICENSE).
