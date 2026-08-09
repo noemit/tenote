@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self' data: https: timg:; script-src 'self';" />
+  <title>Tenote</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="topbar">
+      <div class="brand">Tenote</div>
+      <button id="btn-new" class="icon-btn icon-btn-sm" title="New note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <span id="hint"></span>
+      <div class="spacer"></div>
+      <span id="status"></span>
+      <button id="btn-close" class="icon-btn" title="Close (Esc)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+      </button>
+    </header>
+
+    <section id="composer" class="view">
+      <textarea id="note" spellcheck="true" autocapitalize="sentences" placeholder="Jot it down…"></textarea>
+      <div id="preview" class="preview hidden"></div>
+      <div id="recents" class="recents hidden"></div>
+      <footer id="note-footer">
+        <div id="chips" class="chips hidden"></div>
+        <div class="actions">
+          <button id="btn-preview" class="icon-btn" title="Preview markdown">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button id="btn-panel" class="icon-btn" title="All notes">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </button>
+          <button id="btn-settings" class="icon-btn" title="Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </footer>
+      <div id="settings-pop" class="settings-pop hidden">
+        <label class="set-row"><input type="checkbox" id="set-hide-blur" /> Hide when focus lost</label>
+        <label class="set-row"><input type="checkbox" id="set-launch" /> Launch at login</label>
+        <label class="set-row"><input type="checkbox" id="set-preview" /> Preview after pasting image or markdown</label>
+        <div class="set-sep"></div>
+        <div class="set-label">Theme</div>
+        <div class="theme-row">
+          <button class="theme-swatch" data-theme="latte" title="Latte"></button>
+          <button class="theme-swatch" data-theme="pearl" title="Pearl"></button>
+          <button class="theme-swatch" data-theme="espresso" title="Espresso"></button>
+          <button class="theme-swatch" data-theme="midnight" title="Midnight"></button>
+          <button class="theme-swatch" data-theme="pastel" title="Pastel"></button>
+        </div>
+        <div class="set-sep"></div>
+        <button id="set-notes" class="set-btn">Open Notes Folder</button>
+        <button id="set-logs" class="set-btn">Open Logs Folder</button>
+        <button id="set-quit" class="set-btn set-danger">Quit Tenote</button>
+      </div>
+    </section>
+
+    <section id="panel" class="view hidden">
+      <header class="panel-header">
+        <span id="panel-title" class="panel-title">Notes</span>
+        <div class="spacer"></div>
+        <button id="btn-panel-new" class="text-btn" title="New note">＋ New</button>
+        <button id="btn-panel-close" class="icon-btn" title="Back (Esc)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </header>
+      <ul id="note-list"></ul>
+    </section>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

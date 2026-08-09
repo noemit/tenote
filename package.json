@@ -1,0 +1,50 @@
+{
+  "name": "tenote",
+  "productName": "Tenote",
+  "version": "1.0.0",
+  "description": "A tiny, free, open-source notes app for macOS. Press ⌥. anywhere to jot; notes auto-save as plain Markdown files.",
+  "main": "main.js",
+  "scripts": {
+    "prestart": "node scripts/prestart.js",
+    "start": "electron .",
+    "setup": "node scripts/setup.js",
+    "logs": "node scripts/logs.js",
+    "log-path": "node scripts/logs.js path",
+    "icons": "node scripts/gen-icons.js",
+    "check": "node --check main.js && node --check logger.js && node --check preload.js && node --check renderer/app.js && node --check scripts/tenotectl.js && node --check scripts/logs.js && node --check scripts/prestart.js && node --check scripts/setup.js && node --check scripts/gen-icons.js",
+    "dist": "electron-builder --mac"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^43.3.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.tenote.app",
+    "productName": "Tenote",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "logger.js",
+      "renderer/**",
+      "assets/**",
+      "scripts/**",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "identity": null
+    },
+    "dmg": {
+      "title": "Tenote"
+    }
+  }
+}

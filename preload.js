@@ -1,0 +1,25 @@
+'use strict';
+
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('tenote', {
+  toggle: () => ipcRenderer.invoke('window:toggle'),
+  hide: () => ipcRenderer.invoke('window:hide'),
+  saveNote: (payload) => ipcRenderer.invoke('note:save', payload),
+  listNotes: () => ipcRenderer.invoke('note:list'),
+  readNote: (id) => ipcRenderer.invoke('note:read', id),
+  recentNotes: (limit) => ipcRenderer.invoke('note:recent', limit),
+  attachImage: (payload) => ipcRenderer.invoke('note:attach', payload),
+  openNotesFolder: () => ipcRenderer.invoke('notes:openFolder'),
+  openLogsFolder: () => ipcRenderer.invoke('logs:openFolder'),
+  getState: () => ipcRenderer.invoke('state:get'),
+  getSettings: () => ipcRenderer.invoke('settings:get'),
+  setHideOnBlur: (v) => ipcRenderer.invoke('settings:setHideOnBlur', v),
+  setLaunchAtLogin: (v) => ipcRenderer.invoke('settings:setLaunchAtLogin', v),
+  setPreviewOnPaste: (v) => ipcRenderer.invoke('settings:setPreviewOnPaste', v),
+  setTheme: (t) => ipcRenderer.invoke('settings:setTheme', t),
+  quit: () => ipcRenderer.invoke('app:quit'),
+  log: (level, message) => ipcRenderer.send('log', { level, message }),
+  onShown: (cb) => ipcRenderer.on('window:shown', () => cb()),
+  onGoto: (cb) => ipcRenderer.on('ui:goto', (e, view) => cb(view)),
+});
