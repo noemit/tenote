@@ -350,7 +350,7 @@ function rebuildTrayMenu() {
     { label: 'Open Logs Folder', click: () => { try { shell.openPath(logger.getLogDir()); } catch (e) { /* ignore */ } } },
     { label: 'Copy Log Path', click: () => { clipboard.writeText(logger.getLogFile()); } },
     { type: 'separator' },
-    { label: `Shortcut: ${shortcutLabel()}`, enabled: false },
+    { label: shortcutHintLabel(), enabled: false },
     { label: 'Quit Tenote', click: () => quitApp() },
   ]);
   tray.setContextMenu(menu);
@@ -360,6 +360,12 @@ function shortcutLabel() {
   const s = activeShortcut || SHORTCUT;
   if (!s) return 'via skhd';
   return s.split('+').map((p) => ({ Alt: '⌥', Shift: '⇧', CommandOrControl: '⌘', CmdOrCtrl: '⌘', Command: '⌘', Control: '⌃' }[p] || p)).join('');
+}
+
+function shortcutHintLabel() {
+  const s = activeShortcut || SHORTCUT;
+  if (!s) return 'Toggle with your skhd binding';
+  return `Press ${shortcutLabel()} anywhere to show/hide Tenote`;
 }
 
 // ---- login item ------------------------------------------------------------
