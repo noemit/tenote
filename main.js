@@ -36,7 +36,9 @@ const FALLBACK_SHORTCUT = 'Alt+Shift+.';
 
 const NOTES_DIR = path.join(app.getPath('documents'), 'Tenote Notes');
 const SETTINGS_PATH = path.join(app.getPath('userData'), 'settings.json');
-const SOCKET_PATH = path.join(os.tmpdir(), `tenote-${typeof process.getuid === 'function' ? process.getuid() : process.pid}.sock`);
+// TENOTE_SOCKET must match scripts/tenotectl.js (and any skhd binding that uses it).
+const SOCKET_PATH = process.env.TENOTE_SOCKET
+  || path.join(os.tmpdir(), `tenote-${typeof process.getuid === 'function' ? process.getuid() : process.pid}.sock`);
 const TRAY_ICON = path.join(__dirname, 'assets', 'trayTemplate.png');
 
 app.setName(APP_NAME);
@@ -55,6 +57,9 @@ let isQuitting = false;
 let trayMenuOpen = false;
 let lastToggleAt = 0;
 let activeShortcut = null;
+// True only for this process's first launch ever (persisted firstRunDone is set
+// immediately so we don't re-greet next time; renderer still needs a one-shot flag).
+let isFirstSession = false;
 
 const settings = loadSettings();
 
@@ -67,10 +72,23 @@ function loadSettings() {
   return Object.assign(defaultSettings(), raw || {});
 }
 
+// Write then rename so a crash mid-write can't leave a truncated file.
+function atomicWriteFileSync(file, data, encoding) {
+  const dir = path.dirname(file);
+  const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.tmp`);
+  try {
+    fs.writeFileSync(tmp, data, encoding);
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch (e2) { /* ignore */ }
+    throw e;
+  }
+}
+
 function saveSettings() {
   try {
     fs.mkdirSync(path.dirname(SETTINGS_PATH), { recursive: true });
-    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
+    atomicWriteFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf8');
   } catch (e) { logger.warn('settings', 'save failed', { error: e.message }); }
 }
 
@@ -108,6 +126,7 @@ function bootstrap() {
   if (isMac) applyLoginItem();
 
   if (!settings.firstRunDone) {
+    isFirstSession = true;
     settings.firstRunDone = true;
     saveSettings();
     logger.info('app', 'first run — showing window to greet');
@@ -364,11 +383,11 @@ function setupIpc() {
     notesDir: NOTES_DIR,
     shortcut: shortcutLabel(),
     windowVisible: !!(win && win.isVisible()),
-    firstRun: !settings.firstRunDone,
+    firstRun: isFirstSession,
   }));
   ipcMain.handle('settings:get', () => ({ ...settings }));
   ipcMain.handle('settings:setHideOnBlur', (e, value) => {
-    settings.hideOnBlur = !!value; saveSettings();
+    settings.hideOnBlur = !!value; saveSettings(); rebuildTrayMenu();
     logger.info('settings', 'hideOnBlur (from ui)', { value: settings.hideOnBlur });
     return { ...settings };
   });
@@ -477,7 +496,7 @@ function saveNote(payload) {
 
   fs.mkdirSync(NOTES_DIR, { recursive: true });
   const meta = { id, created: created || now.toISOString(), updated: now.toISOString(), tags: sanitizeTags(p.tags) };
-  fs.writeFileSync(file, serializeNote(meta, text), 'utf8');
+  atomicWriteFileSync(file, serializeNote(meta, text), 'utf8');
   logger.debug('note', 'saved', { id, length: text.length, tags: meta.tags });
   return { ok: true, id, created: meta.created, updated: meta.updated, path: file, deleted: false };
 }

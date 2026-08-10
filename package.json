@@ -41,7 +41,8 @@
         "dmg",
         "zip"
       ],
-      "identity": null
+      "hardenedRuntime": true,
+      "notarize": true
     },
     "dmg": {
       "title": "Tenote"

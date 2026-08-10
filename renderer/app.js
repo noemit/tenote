@@ -319,10 +319,13 @@
   }
 
   function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(() => doSave(false), 350); }
-  function flushSave() { clearTimeout(saveTimer); doSave(true); }
+  function flushSave() { clearTimeout(saveTimer); doSave(true); return saveChain; }
 
   // ---- notes ---------------------------------------------------------------
   async function openNote(id) {
+    // Persist in-progress text before swapping the composer (debounce may not have fired).
+    // Must await the chain — openNote does not bump gen, so a late save would clobber state.
+    try { await flushSave(); } catch (err) { console.error('flush before open failed', err); }
     exitPreview();
     closeSettings();
     closePanel(); // takeover: back to the composer with this note loaded
