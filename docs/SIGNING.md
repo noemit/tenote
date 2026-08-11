@@ -1,14 +1,10 @@
 # Signing & notarization status
 
-**Status: SIGNED as of 2026-08-10.** The 1.0.0 dmg/zip in `dist/` contains an app
-signed with `Developer ID Application: Noemi Titarenco (CT5KSA99W8)` (verified by
-inspecting the code signature — hardened-runtime entitlements present). The dmg
-itself carries no embedded code signature, which is fine for Gatekeeper.
-
-**Notarization: UNVERIFIED.** `notarize: true` was in the build config, but
-stapling can't be checked from Linux — verify on macOS with
-`xcrun stapler validate dist/Tenote-1.0.0-arm64.dmg`, then do a clean-machine
-Gatekeeper test before dropping the README quarantine workaround (see follow-ups).
+**Status: SIGNED + NOTARIZED as of 1.1.0 (2026-08-11).** The dmg/zip are signed
+with `Developer ID Application: Noemi Titarenco (CT5KSA99W8)` (hardened runtime)
+and notarized with notarytool (`notarization successful` in the build log).
+The dmg itself carries no embedded code signature, which is fine for Gatekeeper.
+Final check on a clean machine: open the dmg and confirm no Gatekeeper warning.
 
 (Enrolled as an **individual** on 2026-08-10; enrollment approved same day.)
 

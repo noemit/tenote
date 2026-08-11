@@ -37,19 +37,12 @@ No accounts. No cloud. No tracking. No subscription.
 
 1. Go to the [Releases page](../../releases/latest) and download `Tenote-x.y.z.dmg`.
 2. Open the dmg and drag **Tenote** into **Applications**.
-3. The first time you open it: **right-click → Open → Open**.
-   (macOS warns about apps downloaded from the internet; this one-time step says
-   you trust it. The app is unsigned. It's free software, so nobody paid Apple $99.)
-4. If macOS instead says the app **"is damaged and can't be opened"** (recent macOS
-   versions do this for unsigned apps), either:
-   - try to open it once, then go to **System Settings → Privacy & Security** and
-     click **Open Anyway** next to the Tenote entry, or
-   - run this once in Terminal:
-     ```sh
-     xattr -dr com.apple.quarantine /Applications/Tenote.app
-     ```
-   This just removes the "downloaded from the internet" flag. The app is not damaged.
-5. Done. Press **⌥.** anywhere. The hotkey is built in, nothing else to set up.
+3. Done. Press **⌥.** anywhere. The hotkey is built in, nothing else to set up.
+
+Releases are signed with a Developer ID certificate and notarized by Apple, so
+they open with no warnings. (If you're on an old, unsigned build and macOS says
+the app "is damaged", run `xattr -dr com.apple.quarantine /Applications/Tenote.app`
+once in Terminal, or just grab the latest release.)
 
 ### Option B: build from source
 
