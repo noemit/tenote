@@ -1,10 +1,16 @@
 # Signing & notarization status
 
-**Status: BLOCKED — waiting for Apple Developer Program enrollment approval.**
+**Status: SIGNED as of 2026-08-10.** The 1.0.0 dmg/zip in `dist/` contains an app
+signed with `Developer ID Application: Noemi Titarenco (CT5KSA99W8)` (verified by
+inspecting the code signature — hardened-runtime entitlements present). The dmg
+itself carries no embedded code signature, which is fine for Gatekeeper.
 
-Enrolled as an **individual** on 2026-08-10. Apple typically reviews individual
-enrollments within 24–48 hours (sometimes a few days; watch the enrollment email,
-including spam, in case identity verification is requested).
+**Notarization: UNVERIFIED.** `notarize: true` was in the build config, but
+stapling can't be checked from Linux — verify on macOS with
+`xcrun stapler validate dist/Tenote-1.0.0-arm64.dmg`, then do a clean-machine
+Gatekeeper test before dropping the README quarantine workaround (see follow-ups).
+
+(Enrolled as an **individual** on 2026-08-10; enrollment approved same day.)
 
 ## Why
 
