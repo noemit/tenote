@@ -63,7 +63,7 @@ let isFirstSession = false;
 
 const settings = loadSettings();
 
-function defaultSettings() { return { hideOnBlur: false, launchAtLogin: false, firstRunDone: false, previewOnPaste: true, theme: 'latte' }; }
+  function defaultSettings() { return { hideOnBlur: false, launchAtLogin: false, firstRunDone: false, theme: 'latte' }; }
 
 function loadSettings() {
   let raw = null;
@@ -139,10 +139,12 @@ function createWindow() {
   win = new BrowserWindow({
     width: WINDOW_WIDTH,
     height: WINDOW_HEIGHT,
+    minWidth: 320,
+    minHeight: 220,
     show: false,
     frame: false,
     transparent: true,
-    resizable: false,
+    resizable: true,
     movable: true,
     fullscreenable: false,
     maximizable: false,
@@ -180,7 +182,7 @@ function createWindow() {
     logger.log(lvl, 'renderer', String(msg).slice(0, 2000), p.sourceId ? { source: p.sourceId, line: p.lineNumber } : undefined);
   });
 
-  // Links in the markdown preview open in the default browser — never inside
+  // Links in rendered notes open in the default browser — never inside
   // this frameless window (there would be no way back to the notes UI).
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) { try { shell.openExternal(url); } catch (e) { /* ignore */ } }
@@ -400,11 +402,6 @@ function setupIpc() {
   ipcMain.handle('settings:setLaunchAtLogin', (e, value) => {
     settings.launchAtLogin = !!value; saveSettings(); applyLoginItem(); rebuildTrayMenu();
     logger.info('settings', 'launchAtLogin (from ui)', { value: settings.launchAtLogin });
-    return { ...settings };
-  });
-  ipcMain.handle('settings:setPreviewOnPaste', (e, value) => {
-    settings.previewOnPaste = !!value; saveSettings();
-    logger.info('settings', 'previewOnPaste (from ui)', { value: settings.previewOnPaste });
     return { ...settings };
   });
   ipcMain.handle('settings:setTheme', (e, value) => {

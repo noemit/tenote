@@ -25,14 +25,7 @@
     </header>
 
     <section id="composer" class="view">
-      <div id="mdbar" class="hidden">
-        <div class="seg">
-          <button id="seg-edit" class="seg-btn active">Edit</button>
-          <button id="seg-preview" class="seg-btn">Preview</button>
-        </div>
-      </div>
-      <textarea id="note" spellcheck="true" autocapitalize="sentences" placeholder="Jot it down…"></textarea>
-      <div id="preview" class="preview hidden"></div>
+      <div id="note" contenteditable="true" spellcheck="true" data-placeholder="Jot it down…"></div>
       <div id="recents" class="recents hidden"></div>
       <footer id="note-footer">
         <div id="chips" class="chips hidden"></div>
@@ -40,7 +33,6 @@
       <div id="settings-pop" class="settings-pop hidden">
         <label class="set-row"><input type="checkbox" id="set-hide-blur" /> Hide when focus lost</label>
         <label class="set-row"><input type="checkbox" id="set-launch" /> Launch at login</label>
-        <label class="set-row"><input type="checkbox" id="set-preview" /> Preview after pasting image or markdown</label>
         <div class="set-sep"></div>
         <div class="set-label">Theme</div>
         <div class="theme-row">
@@ -51,9 +43,22 @@
           <button class="theme-swatch" data-theme="pastel" title="Pastel"></button>
         </div>
         <div class="set-sep"></div>
+        <button id="set-tips" class="set-btn">Tips &amp; shortcuts</button>
         <button id="set-notes" class="set-btn">Open Notes Folder</button>
         <button id="set-logs" class="set-btn">Open Logs Folder</button>
         <button id="set-quit" class="set-btn set-danger">Quit Tenote</button>
+      </div>
+      <div id="tips-pop" class="settings-pop tips-pop hidden">
+        <div class="set-label">Tips</div>
+        <ul class="tips-list">
+          <li><b>⌥.</b> toggles Tenote from anywhere</li>
+          <li>Just type — notes save automatically as Markdown files</li>
+          <li>Paste an image to drop it inline (it’s copied into your notes folder)</li>
+          <li>Select text, then <b>⌘B</b> bold or <b>⌘I</b> italic</li>
+          <li><b>#tags</b> become chips under the note</li>
+          <li>Drag the window edges to resize</li>
+        </ul>
+        <div class="tips-by">created by Noemi Titarenco</div>
       </div>
     </section>
 
@@ -61,13 +66,29 @@
       <header class="panel-header">
         <span id="panel-title" class="panel-title">Notes</span>
         <div class="spacer"></div>
-        <button id="btn-panel-new" class="text-btn" title="New note">＋ New</button>
+        <button id="btn-panel-files" class="icon-btn" title="Data files — open notes folder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>
+        </button>
         <button id="btn-panel-close" class="icon-btn" title="Back (Esc)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </header>
       <ul id="note-list"></ul>
     </section>
+
+    <div id="welcome" class="welcome hidden">
+      <div class="welcome-card">
+        <div class="welcome-title">Welcome to Tenote</div>
+        <div class="welcome-keys">
+          <kbd class="key"><span class="key-symbol">⌥</span><span class="key-label">option</span></kbd>
+          <span class="key-plus">+</span>
+          <kbd class="key">.</kbd>
+        </div>
+        <div class="welcome-sub">toggles Tenote from anywhere —<br />it floats above all your windows</div>
+        <div class="welcome-tips">Just type. Paste an image.<br />Everything saves automatically as plain Markdown files.</div>
+        <div class="welcome-by">created by Noemi Titarenco</div>
+      </div>
+    </div>
   </div>
   <script src="app.js"></script>
 </body>

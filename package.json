@@ -3,6 +3,7 @@
   "productName": "Tenote",
   "version": "1.0.0",
   "description": "A tiny, free, open-source notes app for macOS. Press ⌥. anywhere to jot; notes auto-save as plain Markdown files.",
+  "author": "Noemi Titarenco",
   "main": "main.js",
   "scripts": {
     "prestart": "node scripts/prestart.js",
@@ -32,7 +33,9 @@
       "renderer/**",
       "assets/**",
       "scripts/**",
-      "package.json"
+      "package.json",
+      "!screenshots",
+      "!screenshots/**"
     ],
     "mac": {
       "category": "public.app-category.productivity",

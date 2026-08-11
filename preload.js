@@ -1,6 +1,6 @@
 'use strict';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('tenote', {
   toggle: () => ipcRenderer.invoke('window:toggle'),
@@ -10,13 +10,13 @@ contextBridge.exposeInMainWorld('tenote', {
   readNote: (id) => ipcRenderer.invoke('note:read', id),
   recentNotes: (limit) => ipcRenderer.invoke('note:recent', limit),
   attachImage: (payload) => ipcRenderer.invoke('note:attach', payload),
+  pathForFile: (f) => webUtils.getPathForFile(f),
   openNotesFolder: () => ipcRenderer.invoke('notes:openFolder'),
   openLogsFolder: () => ipcRenderer.invoke('logs:openFolder'),
   getState: () => ipcRenderer.invoke('state:get'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setHideOnBlur: (v) => ipcRenderer.invoke('settings:setHideOnBlur', v),
   setLaunchAtLogin: (v) => ipcRenderer.invoke('settings:setLaunchAtLogin', v),
-  setPreviewOnPaste: (v) => ipcRenderer.invoke('settings:setPreviewOnPaste', v),
   setTheme: (t) => ipcRenderer.invoke('settings:setTheme', t),
   quit: () => ipcRenderer.invoke('app:quit'),
   log: (level, message) => ipcRenderer.send('log', { level, message }),

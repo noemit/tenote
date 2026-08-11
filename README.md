@@ -23,9 +23,10 @@ costs you nothing to use. Free forever, MIT licensed.
   anything, syncable anywhere
 - Always on top, on the screen where your cursor is
 - Auto-saves as you type; every note is timestamped
-- Paste images straight into a note
+- Paste images straight into a note — they render inline
+- Select text, then **⌘B** bold or **⌘I** italic
 - `#tags` become little chips at the bottom
-- Markdown preview, a last-3-notes strip, an all-notes view, 5 themes
+- A last-3-notes strip, an all-notes view, 5 themes
 - Lives quietly in your menu bar. No Dock icon, no clutter
 
 No accounts. No cloud. No tracking. No subscription.

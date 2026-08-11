@@ -1,6 +1,6 @@
 'use strict';
 
-// Tenote renderer — auto-saving composer, markdown preview, paste-image support,
+// Tenote renderer — auto-saving composer (contenteditable, inline images/bold/italic),
 // recents strip, all-notes takeover view, and a settings popover.
 
 (() => {
@@ -11,30 +11,25 @@
   const statusEl = $('#status');
   const chipsEl = $('#chips');
   const hintEl = $('#hint');
-  const previewEl = $('#preview');
   const recentsEl = $('#recents');
   const composerView = $('#composer');
   const panelEl = $('#panel');
   const panelTitleEl = $('#panel-title');
   const noteListEl = $('#note-list');
   const settingsPop = $('#settings-pop');
-  const mdbar = $('#mdbar');
-  const segEdit = $('#seg-edit');
-  const segPreview = $('#seg-preview');
+  const tipsPop = $('#tips-pop');
+  const welcomeEl = $('#welcome');
   const setHideBlur = $('#set-hide-blur');
   const setLaunch = $('#set-launch');
-  const setPreview = $('#set-preview');
 
   const state = { id: null, created: null, sessionCreated: false, lastText: '' };
 
   let saveTimer = null;
-  let previewTimer = null;
   let saveChain = Promise.resolve();
   let statusTimer = null;
   let panelOpen = false;
-  let previewing = false;
   let settingsOpen = false;
-  let previewOnPaste = true; // synced from settings; until then assume on
+  let tipsOpen = false;
   let gen = 0; // bumped on every composer reset — stale async saves can't touch state
 
   // ---- helpers -------------------------------------------------------------
@@ -128,6 +123,81 @@
     return html;
   }
 
+  function b64urlDecode(s) {
+    try { return atob(s.replace(/-/g, '+').replace(/_/g, '/')); } catch (e) { return s; }
+  }
+
+  // ---- serializer: rendered composer DOM → markdown stored on disk ----------
+  function imgMd(img) {
+    const src = img.getAttribute('src') || '';
+    const alt = img.getAttribute('alt') || 'image';
+    const m = src.match(/^timg:\/\/file\/(.+)$/);
+    return `![${alt}](${m ? b64urlDecode(m[1]) : src})`;
+  }
+
+  function inlineMd(node) {
+    if (node.nodeType === 3) return node.nodeValue;
+    if (node.nodeType !== 1) return '';
+    const inner = () => Array.from(node.childNodes).map(inlineMd).join('');
+    switch (node.tagName) {
+      case 'STRONG': case 'B': return '**' + inner() + '**';
+      case 'EM': case 'I': return '*' + inner() + '*';
+      case 'CODE': return '`' + inner() + '`';
+      case 'BR': return '\n';
+      case 'IMG': return imgMd(node);
+      case 'A': return `[${inner()}](${node.getAttribute('href') || ''})`;
+      default: return inner();
+    }
+  }
+
+  function blockMd(node) {
+    const inline = () => Array.from(node.childNodes).map(inlineMd).join('');
+    if (/^H[123]$/.test(node.tagName)) return '#'.repeat(+node.tagName[1]) + ' ' + inline();
+    if (node.tagName === 'UL') {
+      return Array.from(node.children)
+        .filter((c) => c.tagName === 'LI')
+        .map((li) => '- ' + Array.from(li.childNodes).map(inlineMd).join(''))
+        .join('\n');
+    }
+    if (node.tagName === 'IMG') return imgMd(node);
+    if (node.tagName === 'BR') return '';
+    // DIV/P and anything else: a line of inline content (empty-ish → blank line)
+    if (!node.textContent && !node.querySelector('img')) return '';
+    return inline();
+  }
+
+  function htmlToMd(root) {
+    return Array.from(root.childNodes)
+      .map((n) => (n.nodeType === 3 ? n.nodeValue : n.nodeType === 1 ? blockMd(n) : ''))
+      .join('\n');
+  }
+
+  function caretToEnd(el) {
+    el.focus();
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    r.collapse(false);
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+  }
+
+  function insertNodeAtCaret(node) {
+    ta.focus();
+    const sel = window.getSelection();
+    if (sel.rangeCount) {
+      const r = sel.getRangeAt(0);
+      r.deleteContents();
+      r.insertNode(node);
+      r.setStartAfter(node);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    } else {
+      ta.appendChild(node);
+    }
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
   // ---- rendering -----------------------------------------------------------
   function renderChips(tags) {
     if (tags && tags.length) {
@@ -145,35 +215,9 @@
     state.created = null;
     state.sessionCreated = false;
     state.lastText = '';
-    ta.value = '';
+    ta.innerHTML = '';
     renderChips([]);
-    updateMdBar();
   }
-
-  // ---- preview (Edit/Preview toggle: rendered markdown replaces the textarea)
-  function renderPreview() {
-    const st = previewEl.scrollTop;
-    previewEl.innerHTML = mdToHtml(ta.value);
-    previewEl.scrollTop = st;
-  }
-
-  function updateMdBar() {
-    mdbar.classList.toggle('hidden', !(previewing || looksLikeMarkdown(ta.value)));
-  }
-
-  function setMode(mode) {
-    const want = mode === 'preview';
-    if (want === previewing) return;
-    previewing = want;
-    composerView.classList.toggle('previewing', previewing);
-    previewEl.classList.toggle('hidden', !previewing);
-    segEdit.classList.toggle('active', !previewing);
-    segPreview.classList.toggle('active', previewing);
-    if (previewing) { renderPreview(); previewEl.scrollTop = 0; }
-    else ta.focus();
-  }
-
-  function exitPreview() { if (previewing) setMode('edit'); }
 
   // ---- recents strip -------------------------------------------------------
   function renderRecents(notes, total) {
@@ -213,8 +257,6 @@
       const s = await jot.getSettings();
       setHideBlur.checked = !!s.hideOnBlur;
       setLaunch.checked = !!s.launchAtLogin;
-      setPreview.checked = !!s.previewOnPaste;
-      previewOnPaste = !!s.previewOnPaste;
       applyTheme(s.theme);
       settingsOpen = true;
       settingsPop.classList.remove('hidden');
@@ -228,7 +270,23 @@
 
   function toggleSettings() {
     if (settingsOpen) closeSettings();
-    else openSettings();
+    else { closeTips(); openSettings(); }
+  }
+
+  function openTips() {
+    closeSettings();
+    tipsOpen = true;
+    tipsPop.classList.remove('hidden');
+  }
+
+  function closeTips() {
+    tipsOpen = false;
+    tipsPop.classList.add('hidden');
+  }
+
+  function toggleTips() {
+    if (tipsOpen) closeTips();
+    else openTips();
   }
 
   // ---- notes view (takeover) ----------------------------------------------
@@ -257,8 +315,8 @@
 
   async function openPanel() {
     flushSave();
-    exitPreview();
     closeSettings();
+    closeTips();
     try {
       await fetchNotes();
       panelOpen = true;
@@ -286,7 +344,7 @@
 
   // ---- saving --------------------------------------------------------------
   function doSave(force) {
-    const text = ta.value;
+    const text = htmlToMd(ta);
     const id = state.id;
     const g = gen; // snapshot: only apply results if the composer wasn't reset
     if (!state.id && !text.trim()) return; // no note on disk yet and nothing to save
@@ -328,8 +386,8 @@
     // Persist in-progress text before swapping the composer (debounce may not have fired).
     // Must await the chain — openNote does not bump gen, so a late save would clobber state.
     try { await flushSave(); } catch (err) { console.error('flush before open failed', err); }
-    exitPreview();
     closeSettings();
+    closeTips();
     closePanel(); // takeover: back to the composer with this note loaded
     try {
       const n = await jot.readNote(id);
@@ -338,40 +396,55 @@
       state.created = n.created;
       state.sessionCreated = false;
       state.lastText = n.body;
-      ta.value = n.body;
+      ta.innerHTML = mdToHtml(n.body);
       renderChips(n.tags || []);
-      updateMdBar();
       refreshRecents();
-      ta.focus();
-      ta.setSelectionRange(ta.value.length, ta.value.length);
+      caretToEnd(ta);
     } catch (err) { console.error('open note failed', err); }
   }
 
   // Starts a brand-new note. Callers must flushSave() first if there's text to keep.
   function newNote() {
-    exitPreview();
     closePanel();
     closeSettings();
+    closeTips();
     resetComposer();
     refreshRecents();
     ta.focus();
   }
 
-  // ---- image paste ---------------------------------------------------------
-  function insertAtCursor(text) {
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    ta.setRangeText(text, start, end, 'end');
-    ta.dispatchEvent(new Event('input', { bubbles: true }));
-    ta.focus();
+  // ---- images: attach by paste or drag-and-drop -----------------------------
+  function attachImageFile(file) {
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { showStatus('Image too large (max 15 MB)', 3500); return; }
+    showStatus('Saving image…');
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const dataUrl = String(reader.result || '');
+        const base64 = dataUrl.split(',')[1] || '';
+        const r = await jot.attachImage({ mime: file.type || 'image/png', base64, noteId: state.id });
+        if (r && r.ok) {
+          const img = document.createElement('img');
+          img.src = 'timg://file/' + b64url(r.path);
+          img.alt = 'image';
+          insertNodeAtCaret(img);
+          showStatus('Image attached → ' + r.path, 3000);
+        } else {
+          showStatus((r && r.error) || 'Could not save image', 3500);
+        }
+      } catch (err) {
+        console.error('attach failed', err);
+        showStatus('Image save failed', 3000);
+      }
+    };
+    reader.onerror = () => showStatus('Could not read image', 3000);
+    reader.readAsDataURL(file);
   }
 
-  function looksLikeMarkdown(t) {
-    return /(^|\n)\s*(#{1,6}\s|[-*+]\s|\d+\.\s|>\s?)|[*_]{1,2}[^*\n]|`[^`\n]`|\[[^\]]*\]\(|!\[/.test(t);
-  }
-
-  function maybePreviewAfterPaste() {
-    if (previewOnPaste) setTimeout(() => { updateMdBar(); setMode('preview'); }, 80);
+  function isImageFile(file) {
+    return (file.type && file.type.startsWith('image/'))
+      || /\.(png|jpe?g|gif|webp|bmp|svg|heic|tiff?)$/i.test(file.name || '');
   }
 
   ta.addEventListener('paste', (e) => {
@@ -380,37 +453,39 @@
       for (const item of items) {
         if (item.kind === 'file' && item.type && item.type.startsWith('image/')) {
           e.preventDefault();
-          const file = item.getAsFile();
-          if (!file) return;
-          if (file.size > 15 * 1024 * 1024) { showStatus('Image too large (max 15 MB)', 3500); return; }
-          showStatus('Saving image…');
-          const reader = new FileReader();
-          reader.onload = async () => {
-            try {
-              const dataUrl = String(reader.result || '');
-              const base64 = dataUrl.split(',')[1] || '';
-              const r = await jot.attachImage({ mime: file.type, base64, noteId: state.id });
-              if (r && r.ok) {
-                insertAtCursor(`![image](${r.path})`);
-                showStatus('Image attached → ' + r.path, 3000);
-                maybePreviewAfterPaste();
-              } else {
-                showStatus((r && r.error) || 'Could not save image', 3500);
-              }
-            } catch (err) {
-              console.error('attach failed', err);
-              showStatus('Image save failed', 3000);
-            }
-          };
-          reader.onerror = () => showStatus('Could not read image', 3000);
-          reader.readAsDataURL(file);
+          attachImageFile(item.getAsFile());
           return;
         }
       }
     }
-    // Text paste that looks like markdown → hop to preview after the insert.
+    // Text/html paste: plain text only — markdown syntax stays literal until reload.
+    e.preventDefault();
     const text = e.clipboardData && e.clipboardData.getData('text/plain');
-    if (text && looksLikeMarkdown(text)) maybePreviewAfterPaste();
+    if (text) document.execCommand('insertText', false, text);
+  });
+
+  // Drag-and-drop: images attach inline; any other file inserts its path.
+  ta.addEventListener('dragover', (e) => { e.preventDefault(); });
+  ta.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
+    if (!files.length) return;
+    // Insert at the point where the file was dropped.
+    const range = document.caretRangeFromPoint && document.caretRangeFromPoint(e.clientX, e.clientY);
+    if (range && ta.contains(range.startContainer)) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    for (const file of files) {
+      if (isImageFile(file)) {
+        attachImageFile(file);
+      } else {
+        let p = '';
+        try { p = jot.pathForFile(file); } catch (err) { console.error('pathForFile failed', err); }
+        if (p) insertNodeAtCaret(document.createTextNode(p));
+      }
+    }
   });
 
   // ---- init ----------------------------------------------------------------
@@ -419,13 +494,9 @@
       const st = await jot.getState();
       if (st.shortcut) hintEl.textContent = `${st.shortcut} toggles · notes → ${st.notesDir}`;
       else hintEl.textContent = `notes → ${st.notesDir}`;
-      if (st.firstRun) {
-        hintEl.classList.add('show');
-        setTimeout(() => hintEl.classList.remove('show'), 9000);
-      }
+      if (st.firstRun) welcomeEl.classList.remove('hidden');
       if (st.windowVisible) ta.focus();
       const s = await jot.getSettings();
-      previewOnPaste = !!s.previewOnPaste;
       applyTheme(s.theme);
       refreshRecents();
     } catch (err) { console.error('init failed', err); }
@@ -433,57 +504,27 @@
 
   // ---- events --------------------------------------------------------------
   ta.addEventListener('input', () => {
+    // Chrome leaves a stray <br> in an emptied composer — clear it so the placeholder returns.
+    if (!ta.textContent && !ta.querySelector('img')) ta.innerHTML = '';
     scheduleSave();
-    updateMdBar();
-    if (previewing) { clearTimeout(previewTimer); previewTimer = setTimeout(renderPreview, 120); }
   });
 
-  // ⌘/Ctrl+B toggles **bold** around the selection; Tab indents, Shift+Tab outdents.
-  function toggleBold() {
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const sel = ta.value.slice(start, end);
-    if (start === end) {
-      ta.setRangeText('****', start, end, 'end');
-      ta.setSelectionRange(start + 2, start + 2);
-    } else if (ta.value.slice(start - 2, start) === '**' && ta.value.slice(end, end + 2) === '**') {
-      ta.setRangeText(sel, start - 2, end + 2, 'select'); // unwrap existing **
-    } else {
-      ta.setRangeText('**' + sel + '**', start, end, 'select');
-    }
-    ta.dispatchEvent(new Event('input', { bubbles: true }));
-    ta.focus();
-  }
-
-  function indentSelection(outdent) {
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const v = ta.value;
-    const lineStart = v.lastIndexOf('\n', start - 1) + 1;
-    let lineEnd = v.indexOf('\n', end);
-    if (lineEnd === -1) lineEnd = v.length;
-    const lines = v.slice(lineStart, lineEnd).split('\n');
-    const next = outdent
-      ? lines.map((l) => l.replace(/^ {1,2}/, ''))
-      : lines.map((l) => '  ' + l);
-    const block = next.join('\n');
-    ta.setRangeText(block, lineStart, lineEnd, 'end');
-    ta.setSelectionRange(lineStart, lineStart + block.length);
-    ta.dispatchEvent(new Event('input', { bubbles: true }));
-    ta.focus();
-  }
-
   ta.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab') { e.preventDefault(); indentSelection(e.shiftKey); }
+    if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText', false, '  '); }
   });
   window.addEventListener('blur', flushSave);
   document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
 
+  function welcomeVisible() { return !welcomeEl.classList.contains('hidden'); }
+  function dismissWelcome() { welcomeEl.classList.add('hidden'); }
+  welcomeEl.addEventListener('click', dismissWelcome);
+
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       e.preventDefault();
-      if (previewing) exitPreview();
+      if (welcomeVisible()) dismissWelcome();
       else if (settingsOpen) closeSettings();
+      else if (tipsOpen) closeTips();
       else if (panelOpen) closePanel();
       else { flushSave(); jot.hide(); }
     } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -491,28 +532,27 @@
       flushSave();
       jot.hide();
     } else if ((e.metaKey || e.ctrlKey) && (e.key === 'b' || e.key === 'B')) {
-      if (previewing || panelOpen) return;
+      if (panelOpen) return;
       e.preventDefault();
-      toggleBold();
+      document.execCommand('bold');
+    } else if ((e.metaKey || e.ctrlKey) && (e.key === 'i' || e.key === 'I')) {
+      if (panelOpen) return;
+      e.preventDefault();
+      document.execCommand('italic');
     }
   });
 
   $('#btn-new').addEventListener('click', () => { flushSave(); newNote(); });
   $('#btn-close').addEventListener('click', () => { flushSave(); jot.hide(); });
 
-  segEdit.addEventListener('click', () => setMode('edit'));
-  segPreview.addEventListener('click', () => setMode('preview'));
   $('#btn-settings').addEventListener('click', () => toggleSettings());
+  $('#set-tips').addEventListener('click', () => toggleTips());
 
   $('#btn-panel-close').addEventListener('click', () => closePanel());
-  $('#btn-panel-new').addEventListener('click', () => { flushSave(); newNote(); });
+  $('#btn-panel-files').addEventListener('click', () => jot.openNotesFolder());
 
   setHideBlur.addEventListener('change', () => jot.setHideOnBlur(setHideBlur.checked));
   setLaunch.addEventListener('change', () => jot.setLaunchAtLogin(setLaunch.checked));
-  setPreview.addEventListener('change', () => {
-    previewOnPaste = setPreview.checked;
-    jot.setPreviewOnPaste(previewOnPaste);
-  });
   document.querySelectorAll('.theme-swatch').forEach((sw) => {
     sw.addEventListener('click', () => {
       applyTheme(sw.dataset.theme);
@@ -534,10 +574,13 @@
     if (item) openNote(item.dataset.id);
   });
 
-  // Clicking outside the settings popover closes it (the toggle button manages itself).
+  // Clicking outside the settings/tips popovers closes them (the toggles manage themselves).
   document.addEventListener('click', (e) => {
     if (settingsOpen && !settingsPop.contains(e.target) && !e.target.closest('#btn-settings')) {
       closeSettings();
+    }
+    if (tipsOpen && !tipsPop.contains(e.target) && !e.target.closest('#set-tips')) {
+      closeTips();
     }
   });
 
@@ -555,5 +598,6 @@
     try { jot.log('error', 'unhandledrejection: ' + (e.reason && (e.reason.stack || e.reason) || e.reason)); } catch (err) { /* ignore */ }
   });
 
+  document.execCommand('styleWithCSS', false, false); // bold/italic → <b>/<i>, not spans
   init();
 })();
