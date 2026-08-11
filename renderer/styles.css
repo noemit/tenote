@@ -215,6 +215,13 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.recent-more {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.recent-more .rt { color: var(--muted); }
 
 /* ---- markdown preview ---- */
 .preview {
@@ -243,20 +250,47 @@ body {
 .preview a { color: var(--accent); }
 .preview img { max-width: 100%; border-radius: 10px; margin: 6px 0; }
 
-/* live split mode: edit on top, rendered preview below */
-#composer.split #note { flex: 0 0 42%; min-height: 70px; }
-#composer.split #preview {
+/* preview mode: rendered markdown replaces the composer text area */
+#composer.previewing #note,
+#composer.previewing #recents,
+#composer.previewing #note-footer { display: none; }
+#composer.previewing #preview {
   flex: 1;
   min-height: 0;
-  border-top: 1px solid var(--border);
 }
-#composer.split #recents { display: none; }
+
+/* markdown Edit/Preview toggle bar (under the top bar) */
+#mdbar {
+  flex: 0 0 auto;
+  display: flex;
+  padding: 0 16px 4px;
+}
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+}
+.seg-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.seg-btn.active { background: var(--active); color: var(--text); }
 
 /* ---- settings popover ---- */
 .settings-pop {
   position: absolute;
   right: 8px;
-  bottom: 52px;
+  top: 44px;
   width: 200px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -371,8 +405,6 @@ body {
   border-radius: 999px;
   white-space: nowrap;
 }
-
-.actions { display: flex; gap: 2px; flex: 0 0 auto; }
 
 /* ---- notes view (takeover) ------------------------------------------------ */
 .panel {

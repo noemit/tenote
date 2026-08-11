@@ -567,12 +567,13 @@ function readNote(id) {
 }
 
 // The 3 most recent notes, cheap: sorts by file mtime (no full scan needed).
+// Returns { notes, total } — total drives the "+N more" overflow card.
 function recentNotes(limit) {
   const n = Math.max(1, Math.min(parseInt(limit, 10) || 3, 8));
   try {
-    if (!fs.existsSync(NOTES_DIR)) return [];
-    return fs.readdirSync(NOTES_DIR)
-      .filter((f) => f.endsWith('.md'))
+    if (!fs.existsSync(NOTES_DIR)) return { notes: [], total: 0 };
+    const files = fs.readdirSync(NOTES_DIR).filter((f) => f.endsWith('.md'));
+    const notes = files
       .map((f) => ({ f, m: fs.statSync(path.join(NOTES_DIR, f)).mtimeMs }))
       .sort((a, b) => b.m - a.m)
       .slice(0, n)
@@ -590,9 +591,10 @@ function recentNotes(limit) {
         } catch (e) { return null; }
       })
       .filter(Boolean);
+    return { notes, total: files.length };
   } catch (e) {
     logger.error('note', 'recent failed', { error: e.message });
-    return [];
+    return { notes: [], total: 0 };
   }
 }
 

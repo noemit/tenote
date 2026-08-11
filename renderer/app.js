@@ -18,6 +18,9 @@
   const panelTitleEl = $('#panel-title');
   const noteListEl = $('#note-list');
   const settingsPop = $('#settings-pop');
+  const mdbar = $('#mdbar');
+  const segEdit = $('#seg-edit');
+  const segPreview = $('#seg-preview');
   const setHideBlur = $('#set-hide-blur');
   const setLaunch = $('#set-launch');
   const setPreview = $('#set-preview');
@@ -144,51 +147,55 @@
     state.lastText = '';
     ta.value = '';
     renderChips([]);
+    updateMdBar();
   }
 
-  // ---- preview (live split: edit on top, rendered below) -------------------
+  // ---- preview (Edit/Preview toggle: rendered markdown replaces the textarea)
   function renderPreview() {
     const st = previewEl.scrollTop;
     previewEl.innerHTML = mdToHtml(ta.value);
     previewEl.scrollTop = st;
   }
 
-  function exitPreview() {
-    if (!previewing) return;
-    previewing = false;
-    composerView.classList.remove('split');
-    previewEl.classList.add('hidden');
-    ta.focus();
+  function updateMdBar() {
+    mdbar.classList.toggle('hidden', !(previewing || looksLikeMarkdown(ta.value)));
   }
 
-  function enterPreview() {
-    previewing = true;
-    composerView.classList.add('split');
-    previewEl.classList.remove('hidden');
-    renderPreview();
-    previewEl.scrollTop = 0;
-    ta.focus();
+  function setMode(mode) {
+    const want = mode === 'preview';
+    if (want === previewing) return;
+    previewing = want;
+    composerView.classList.toggle('previewing', previewing);
+    previewEl.classList.toggle('hidden', !previewing);
+    segEdit.classList.toggle('active', !previewing);
+    segPreview.classList.toggle('active', previewing);
+    if (previewing) { renderPreview(); previewEl.scrollTop = 0; }
+    else ta.focus();
   }
 
-  function togglePreview() {
-    if (previewing) exitPreview();
-    else enterPreview();
-  }
+  function exitPreview() { if (previewing) setMode('edit'); }
 
   // ---- recents strip -------------------------------------------------------
-  function renderRecents(notes) {
-    recentsEl.innerHTML = notes.map((n) => `<button class="recent-card" data-id="${escapeHtml(n.id)}">
+  function renderRecents(notes, total) {
+    const cards = notes.map((n) => `<button class="recent-card" data-id="${escapeHtml(n.id)}">
       <div class="rt">${escapeHtml(n.title)}</div>
       <div class="rs">${escapeHtml(relativeTime(n.updated))}</div>
-    </button>`).join('');
-    recentsEl.classList.toggle('hidden', notes.length === 0);
+    </button>`);
+    const more = total - notes.length;
+    if (more > 0) {
+      cards.push(`<button class="recent-card recent-more" data-more="1"><div class="rt">+${more} more</div></button>`);
+    }
+    recentsEl.innerHTML = cards.join('');
+    recentsEl.classList.toggle('hidden', cards.length === 0);
   }
 
   async function refreshRecents() {
     try {
-      let notes = await jot.recentNotes(3);
+      const res = await jot.recentNotes(3);
+      let notes = res.notes || [];
+      const total = res.total || 0;
       if (state.sessionCreated && state.id) notes = notes.filter((n) => n.id !== state.id);
-      renderRecents(notes);
+      renderRecents(notes, total);
     } catch (err) { console.error('recents failed', err); }
   }
 
@@ -270,11 +277,6 @@
     composerView.classList.remove('hidden');
   }
 
-  function togglePanel() {
-    if (panelOpen) closePanel();
-    else openPanel();
-  }
-
   async function refreshPanel() {
     try {
       const notes = await jot.listNotes();
@@ -338,6 +340,7 @@
       state.lastText = n.body;
       ta.value = n.body;
       renderChips(n.tags || []);
+      updateMdBar();
       refreshRecents();
       ta.focus();
       ta.setSelectionRange(ta.value.length, ta.value.length);
@@ -368,7 +371,7 @@
   }
 
   function maybePreviewAfterPaste() {
-    if (previewOnPaste) setTimeout(() => enterPreview(), 80);
+    if (previewOnPaste) setTimeout(() => { updateMdBar(); setMode('preview'); }, 80);
   }
 
   ta.addEventListener('paste', (e) => {
@@ -431,7 +434,47 @@
   // ---- events --------------------------------------------------------------
   ta.addEventListener('input', () => {
     scheduleSave();
+    updateMdBar();
     if (previewing) { clearTimeout(previewTimer); previewTimer = setTimeout(renderPreview, 120); }
+  });
+
+  // ⌘/Ctrl+B toggles **bold** around the selection; Tab indents, Shift+Tab outdents.
+  function toggleBold() {
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const sel = ta.value.slice(start, end);
+    if (start === end) {
+      ta.setRangeText('****', start, end, 'end');
+      ta.setSelectionRange(start + 2, start + 2);
+    } else if (ta.value.slice(start - 2, start) === '**' && ta.value.slice(end, end + 2) === '**') {
+      ta.setRangeText(sel, start - 2, end + 2, 'select'); // unwrap existing **
+    } else {
+      ta.setRangeText('**' + sel + '**', start, end, 'select');
+    }
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    ta.focus();
+  }
+
+  function indentSelection(outdent) {
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const v = ta.value;
+    const lineStart = v.lastIndexOf('\n', start - 1) + 1;
+    let lineEnd = v.indexOf('\n', end);
+    if (lineEnd === -1) lineEnd = v.length;
+    const lines = v.slice(lineStart, lineEnd).split('\n');
+    const next = outdent
+      ? lines.map((l) => l.replace(/^ {1,2}/, ''))
+      : lines.map((l) => '  ' + l);
+    const block = next.join('\n');
+    ta.setRangeText(block, lineStart, lineEnd, 'end');
+    ta.setSelectionRange(lineStart, lineStart + block.length);
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    ta.focus();
+  }
+
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') { e.preventDefault(); indentSelection(e.shiftKey); }
   });
   window.addEventListener('blur', flushSave);
   document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
@@ -447,14 +490,18 @@
       e.preventDefault();
       flushSave();
       jot.hide();
+    } else if ((e.metaKey || e.ctrlKey) && (e.key === 'b' || e.key === 'B')) {
+      if (previewing || panelOpen) return;
+      e.preventDefault();
+      toggleBold();
     }
   });
 
   $('#btn-new').addEventListener('click', () => { flushSave(); newNote(); });
   $('#btn-close').addEventListener('click', () => { flushSave(); jot.hide(); });
 
-  $('#btn-preview').addEventListener('click', () => togglePreview());
-  $('#btn-panel').addEventListener('click', () => togglePanel());
+  segEdit.addEventListener('click', () => setMode('edit'));
+  segPreview.addEventListener('click', () => setMode('preview'));
   $('#btn-settings').addEventListener('click', () => toggleSettings());
 
   $('#btn-panel-close').addEventListener('click', () => closePanel());
@@ -477,6 +524,7 @@
   $('#set-quit').addEventListener('click', () => { closeSettings(); jot.quit(); });
 
   recentsEl.addEventListener('click', (e) => {
+    if (e.target.closest('.recent-more')) { openPanel(); return; }
     const card = e.target.closest('.recent-card');
     if (card) openNote(card.dataset.id);
   });
