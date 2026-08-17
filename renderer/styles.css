@@ -22,6 +22,7 @@
   --shadow: 0 8px 28px rgba(90, 66, 38, 0.12);
   --pop: #fbf6ea;
   --tile: #efe4d0;
+  --danger: #b03a2e;
 }
 
 /* ---- Pearl (light, cool) ------------------------------------------------ */
@@ -46,6 +47,7 @@ body[data-theme="pearl"] {
   --shadow: 0 8px 28px rgba(40, 50, 70, 0.10);
   --pop: #ffffff;
   --tile: #eef0f3;
+  --danger: #b03a2e;
 }
 
 /* ---- Espresso (dark, coffee) -------------------------------------------- */
@@ -70,6 +72,7 @@ body[data-theme="espresso"] {
   --shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
   --pop: #382d24;
   --tile: #2f261e;
+  --danger: #e88a7e;
 }
 
 /* ---- Midnight (dark, slate-blue) ---------------------------------------- */
@@ -94,6 +97,7 @@ body[data-theme="midnight"] {
   --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
   --pop: #272e3a;
   --tile: #222933;
+  --danger: #e88a7e;
 }
 
 /* ---- Pastel (super-soft pink → blue gradient) --------------------------- */
@@ -118,6 +122,7 @@ body[data-theme="pastel"] {
   --shadow: 0 8px 28px rgba(140, 130, 180, 0.14);
   --pop: #ffffff;
   --tile: #f0eefc;
+  --danger: #b03a2e;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -145,6 +150,20 @@ body[data-theme="espresso"] #app,
 body[data-theme="midnight"] #app {
   box-shadow: 0 0 0 1px var(--app-border), var(--window-shadow);
 }
+
+.rz {
+  position: absolute;
+  z-index: 5;
+  -webkit-app-region: no-drag;
+}
+.rz-n { top: 0; left: 12px; right: 12px; height: 8px; cursor: ns-resize; }
+.rz-s { bottom: 0; left: 12px; right: 12px; height: 8px; cursor: ns-resize; }
+.rz-e { right: 0; top: 12px; bottom: 12px; width: 8px; cursor: ew-resize; }
+.rz-w { left: 0; top: 12px; bottom: 12px; width: 8px; cursor: ew-resize; }
+.rz-ne { top: 0; right: 0; width: 12px; height: 12px; cursor: nesw-resize; }
+.rz-nw { top: 0; left: 0; width: 12px; height: 12px; cursor: nwse-resize; }
+.rz-se { bottom: 0; right: 0; width: 12px; height: 12px; cursor: nwse-resize; }
+.rz-sw { bottom: 0; left: 0; width: 12px; height: 12px; cursor: nesw-resize; }
 
 /* ---- top bar ------------------------------------------------------------ */
 #topbar {
@@ -368,7 +387,7 @@ body[data-theme="midnight"] #app {
   cursor: pointer;
 }
 .set-btn:hover { background: var(--hover); }
-.set-btn.set-danger { color: #b03a2e; }
+.set-btn.set-danger { color: var(--danger); }
 
 /* ---- tips card ---- */
 .tips-pop { width: 250px; }

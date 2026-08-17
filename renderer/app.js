@@ -568,6 +568,15 @@
     }
   });
 
+  document.querySelectorAll('.rz').forEach((el) => {
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      jot.resizeStart(el.dataset.edge);
+    });
+  });
+  window.addEventListener('mouseup', () => jot.resizeEnd());
+  window.addEventListener('blur', () => jot.resizeEnd());
+
   $('#btn-new').addEventListener('click', () => { flushSave(); newNote(); });
   $('#btn-close').addEventListener('click', () => { flushSave(); jot.hide(); });
 

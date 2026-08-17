@@ -5,6 +5,8 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 contextBridge.exposeInMainWorld('tenote', {
   toggle: () => ipcRenderer.invoke('window:toggle'),
   hide: () => ipcRenderer.invoke('window:hide'),
+  resizeStart: (edge) => ipcRenderer.invoke('window:resizeStart', edge),
+  resizeEnd: () => ipcRenderer.invoke('window:resizeEnd'),
   saveNote: (payload) => ipcRenderer.invoke('note:save', payload),
   listNotes: () => ipcRenderer.invoke('note:list'),
   readNote: (id) => ipcRenderer.invoke('note:read', id),

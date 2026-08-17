@@ -1,7 +1,7 @@
 'use strict';
 
-// Generates tray template icons (16px + 32px @2x) and the 1024px app icon
-// (assets/icon.png, used by electron-builder) — no deps, pure PNG encoder.
+// Generates tray template icons (16px + 32px @2x). The Dock/app icon is the
+// designed assets/icon.png — this script does not overwrite it.
 // Usage: node scripts/gen-icons.js   (writes to assets/)
 
 const zlib = require('zlib');
@@ -86,40 +86,15 @@ function trayIcon(size) {
   };
 }
 
-// macOS app icon: latte rounded square with a caramel note card (theme colors).
-function appIcon(size) {
-  const c = size / 2;
-  const cream = [243, 234, 219];   // #f3eadb — Latte background
-  const caramel = [169, 118, 47];  // #a9762f — Latte accent
-  const lines = [-0.088 * size, 0.011 * size, 0.11 * size];
-  const lineH = size * 0.038;
-  const lineHalfW = size * 0.143;
-  return (x, y) => {
-    const bgA = cov(roundedRectSdf(x, y, c, c, size * 0.5, size * 0.5, size * 0.225));
-    if (bgA <= 0) return [0, 0, 0, 0];
-    let cardA = cov(roundedRectSdf(x, y, c, c, size * 0.24, size * 0.23, size * 0.05));
-    if (cardA > 0) {
-      for (const ly of lines) {
-        if (Math.abs(x - c) < lineHalfW && Math.abs(y - (c + ly)) < lineH / 2) { cardA = 0; break; }
-      }
-    }
-    const mix = (from, to, t) => Math.round(from + (to - from) * t);
-    return cardA > 0
-      ? [mix(cream[0], caramel[0], cardA), mix(cream[1], caramel[1], cardA), mix(cream[2], caramel[2], cardA), bgA * 255]
-      : [cream[0], cream[1], cream[2], bgA * 255];
-  };
-}
-
 function generate(dir) {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'trayTemplate.png'), encodePng(16, trayIcon(16)));
   fs.writeFileSync(path.join(dir, 'trayTemplate@2x.png'), encodePng(32, trayIcon(32)));
-  fs.writeFileSync(path.join(dir, 'icon.png'), encodePng(1024, appIcon(1024)));
 }
 
 if (require.main === module) {
   generate(path.join(__dirname, '..', 'assets'));
-  console.log('wrote assets/trayTemplate.png, assets/trayTemplate@2x.png, assets/icon.png');
+  console.log('wrote assets/trayTemplate.png, assets/trayTemplate@2x.png');
 }
 
 module.exports = generate;

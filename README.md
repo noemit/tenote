@@ -1,5 +1,9 @@
 # Tenote
 
+<p align="center">
+  <img src="assets/icon.png" width="180" alt="Tenote">
+</p>
+
 The simplest notes app for Mac. Press **⌥.** (Option+Period) anywhere on your
 screen. A small card floats up, you type, it saves itself. That's the whole app.
 

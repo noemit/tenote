@@ -27,6 +27,8 @@ const APP_NAME = 'Tenote';
 const WINDOW_WIDTH = 480;
 const WINDOW_HEIGHT = 340;
 const SHADOW_PAD = 48; // room around the card so the CSS shadow can fade out
+const MIN_WINDOW_WIDTH = 320 + SHADOW_PAD * 2;
+const MIN_WINDOW_HEIGHT = 220 + SHADOW_PAD * 2;
 const BLUR_HIDE_DELAY = 160;          // ms after losing focus before hiding
 const TOGGLE_COALESCE_MS = 250;       // swallow double-fire (skhd + built-in shortcut)
 
@@ -64,7 +66,7 @@ let isFirstSession = false;
 
 const settings = loadSettings();
 
-  function defaultSettings() { return { hideOnBlur: false, launchAtLogin: false, hideBrand: false, hideRecents: false, firstRunDone: false, theme: 'latte' }; }
+  function defaultSettings() { return { hideOnBlur: false, launchAtLogin: false, hideBrand: false, hideRecents: false, showDockIcon: false, firstRunDone: false, theme: 'latte' }; }
 
 function loadSettings() {
   let raw = null;
@@ -93,6 +95,27 @@ function saveSettings() {
   } catch (e) { logger.warn('settings', 'save failed', { error: e.message }); }
 }
 
+function applyDockIcon() {
+  if (!isMac) return;
+  const show = !!settings.showDockIcon;
+  try {
+    if (app.dock) {
+      const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png'));
+      if (!icon.isEmpty()) app.dock.setIcon(icon);
+    }
+    if (show) {
+      app.setActivationPolicy('regular');
+      if (app.dock) app.dock.show();
+    } else {
+      if (app.dock) app.dock.hide();
+      app.setActivationPolicy('accessory');
+    }
+  } catch (e) { logger.warn('app', 'dock icon failed', { error: e.message, show }); }
+  if (win) {
+    try { win.setSkipTaskbar(!show); } catch (e) { /* ignore */ }
+  }
+}
+
 // ---- single instance -------------------------------------------------------
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -113,9 +136,7 @@ function bootstrap() {
     startedAt,
   });
 
-  if (isMac) {
-    try { app.setActivationPolicy('accessory'); } catch (e) { logger.warn('app', 'setActivationPolicy failed', { error: e.message }); }
-  }
+  applyDockIcon();
   try { ensureTrayIcon(); } catch (e) { logger.warn('icons', 'icon generation failed', { error: e.message }); }
 
   startSocketServer();
@@ -140,8 +161,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: WINDOW_WIDTH + SHADOW_PAD * 2,
     height: WINDOW_HEIGHT + SHADOW_PAD * 2,
-    minWidth: 320 + SHADOW_PAD * 2,
-    minHeight: 220 + SHADOW_PAD * 2,
+    minWidth: MIN_WINDOW_WIDTH,
+    minHeight: MIN_WINDOW_HEIGHT,
     show: false,
     frame: false,
     transparent: true,
@@ -151,7 +172,7 @@ function createWindow() {
     maximizable: false,
     minimizable: false,
     alwaysOnTop: true,
-    skipTaskbar: true,
+    skipTaskbar: !settings.showDockIcon,
     hasShadow: false,
     backgroundColor: '#00000000',
     webPreferences: {
@@ -210,7 +231,44 @@ function createWindow() {
   win.on('close', (e) => {
     if (!isQuitting) { e.preventDefault(); logger.debug('window', 'close prevented -> hide'); win.hide(); }
   });
-  win.on('closed', () => { win = null; });
+  win.on('closed', () => { win = null; stopResize(); });
+}
+
+const RESIZE_EDGES = new Set(['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']);
+let resizeTick = null;
+let resizeState = null;
+
+function stopResize() {
+  if (resizeTick) { clearInterval(resizeTick); resizeTick = null; }
+  resizeState = null;
+}
+
+function startResize(edge) {
+  if (!win || !RESIZE_EDGES.has(String(edge || ''))) return;
+  stopResize();
+  resizeState = { edge: String(edge), start: screen.getCursorScreenPoint(), bounds: { ...win.getBounds() } };
+  resizeTick = setInterval(() => {
+    if (!win || !resizeState) { stopResize(); return; }
+    const p = screen.getCursorScreenPoint();
+    const dx = p.x - resizeState.start.x;
+    const dy = p.y - resizeState.start.y;
+    const b = resizeState.bounds;
+    const e = resizeState.edge;
+    let { x, y, width, height } = b;
+    if (e.includes('e')) width = b.width + dx;
+    if (e.includes('w')) { width = b.width - dx; x = b.x + dx; }
+    if (e.includes('s')) height = b.height + dy;
+    if (e.includes('n')) { height = b.height - dy; y = b.y + dy; }
+    if (width < MIN_WINDOW_WIDTH) {
+      if (e.includes('w')) x = b.x + b.width - MIN_WINDOW_WIDTH;
+      width = MIN_WINDOW_WIDTH;
+    }
+    if (height < MIN_WINDOW_HEIGHT) {
+      if (e.includes('n')) y = b.y + b.height - MIN_WINDOW_HEIGHT;
+      height = MIN_WINDOW_HEIGHT;
+    }
+    win.setBounds({ x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) });
+  }, 16);
 }
 
 function showWindow() {
@@ -244,7 +302,7 @@ function toggleWindow() {
   }
   lastToggleAt = now;
   if (!win) return;
-  if (win.isVisible()) win.hide();
+  if (win.isVisible()) { stopResize(); win.hide(); }
   else showWindow();
 }
 
@@ -350,6 +408,10 @@ function rebuildTrayMenu() {
       label: 'Launch at login', type: 'checkbox', checked: settings.launchAtLogin,
       click: (item) => { settings.launchAtLogin = item.checked; saveSettings(); applyLoginItem(); logger.info('settings', 'launchAtLogin', { value: settings.launchAtLogin }); },
     },
+    {
+      label: 'Show in Dock', type: 'checkbox', checked: settings.showDockIcon,
+      click: (item) => { settings.showDockIcon = item.checked; saveSettings(); applyDockIcon(); logger.info('settings', 'showDockIcon', { value: settings.showDockIcon }); },
+    },
     { type: 'separator' },
     { label: 'Open Logs Folder', click: () => { try { shell.openPath(logger.getLogDir()); } catch (e) { /* ignore */ } } },
     { label: 'Copy Log Path', click: () => { clipboard.writeText(logger.getLogFile()); } },
@@ -388,7 +450,9 @@ function setupIpc() {
   });
 
   ipcMain.handle('window:toggle', () => { toggleWindow(); return { visible: !!(win && win.isVisible()) }; });
-  ipcMain.handle('window:hide', () => { if (win) win.hide(); return true; });
+  ipcMain.handle('window:hide', () => { stopResize(); if (win) win.hide(); return true; });
+  ipcMain.handle('window:resizeStart', (e, edge) => { startResize(edge); return true; });
+  ipcMain.handle('window:resizeEnd', () => { stopResize(); return true; });
   ipcMain.handle('state:get', () => ({
     notesDir: NOTES_DIR,
     shortcut: shortcutLabel(),
@@ -423,6 +487,7 @@ function setupIpc() {
     logger.info('settings', 'hideRecents (from ui)', { value: settings.hideRecents });
     return { ...settings };
   });
+
   ipcMain.handle('logs:openFolder', () => {
     try { return shell.openPath(logger.getLogDir()); }
     catch (err) { return String(err && err.message || err); }
