@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('tenote', {
   setHideOnBlur: (v) => ipcRenderer.invoke('settings:setHideOnBlur', v),
   setLaunchAtLogin: (v) => ipcRenderer.invoke('settings:setLaunchAtLogin', v),
   setTheme: (t) => ipcRenderer.invoke('settings:setTheme', t),
+  setHideBrand: (v) => ipcRenderer.invoke('settings:setHideBrand', v),
+  setHideRecents: (v) => ipcRenderer.invoke('settings:setHideRecents', v),
   quit: () => ipcRenderer.invoke('app:quit'),
   log: (level, message) => ipcRenderer.send('log', { level, message }),
   onShown: (cb) => ipcRenderer.on('window:shown', () => cb()),

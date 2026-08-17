@@ -21,7 +21,7 @@ costs you nothing to use. Free forever, MIT licensed.
 - Every open is a fresh note. Whatever you were writing is already saved
 - Notes save as **Markdown files** in `~/Documents/Tenote Notes`. Readable by
   anything, syncable anywhere
-- Always on top, on the screen where your cursor is
+- Always on top, appears next to your cursor
 - Auto-saves as you type; every note is timestamped
 - Paste images straight into a note — they render inline
 - Select text, then **⌘B** bold or **⌘I** italic
@@ -99,7 +99,7 @@ Drive and your notes sync themselves. Pasted images live in the `images/` subfol
 - **Esc** or **⌘⏎** saves and closes the card
 - **Deleting all the text** of a note deletes the note
 - **＋** starts a new note; the strip at the bottom shows your last 3
-- **⚙️** has themes, launch-at-login, and shortcuts to the folders
+- **⚙️** has themes, hide-the-label, hide-the-recents-bar, launch-at-login, and a shortcut to your notes folder
 - The menu-bar card icon has all the same controls
 
 ## Uninstall

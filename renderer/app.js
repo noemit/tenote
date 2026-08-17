@@ -21,6 +21,10 @@
   const welcomeEl = $('#welcome');
   const setHideBlur = $('#set-hide-blur');
   const setLaunch = $('#set-launch');
+  const setHideBrand = $('#set-hide-brand');
+  const setHideRecents = $('#set-hide-recents');
+  const brandEl = $('.brand');
+  const notesCountEl = $('#btn-notes-count');
 
   const state = { id: null, created: null, sessionCreated: false, lastText: '' };
 
@@ -31,6 +35,7 @@
   let settingsOpen = false;
   let tipsOpen = false;
   let gen = 0; // bumped on every composer reset — stale async saves can't touch state
+  let hideRecents = false; // settings: collapse the recents strip to a count button
 
   // ---- helpers -------------------------------------------------------------
   const TAGS_RE = /(^|\s)#([A-Za-z0-9_\u00C0-\uFFFF][\w\u00C0-\uFFFF\-+]*)/g;
@@ -221,6 +226,18 @@
 
   // ---- recents strip -------------------------------------------------------
   function renderRecents(notes, total) {
+    if (hideRecents) {
+      recentsEl.innerHTML = '';
+      recentsEl.classList.add('hidden');
+      if (total > 0) {
+        notesCountEl.textContent = total + (total === 1 ? ' note' : ' notes');
+        notesCountEl.classList.remove('hidden');
+      } else {
+        notesCountEl.classList.add('hidden');
+      }
+      return;
+    }
+    notesCountEl.classList.add('hidden');
     const cards = notes.map((n) => `<button class="recent-card" data-id="${escapeHtml(n.id)}">
       <div class="rt">${escapeHtml(n.title)}</div>
       <div class="rs">${escapeHtml(relativeTime(n.updated))}</div>
@@ -252,12 +269,19 @@
     document.querySelectorAll('.theme-swatch').forEach((sw) => sw.classList.toggle('active', sw.dataset.theme === theme));
   }
 
+  function applyHideBrand(hide) {
+    brandEl.classList.toggle('hidden', !!hide);
+  }
+
   async function openSettings() {
     try {
       const s = await jot.getSettings();
       setHideBlur.checked = !!s.hideOnBlur;
       setLaunch.checked = !!s.launchAtLogin;
+      setHideBrand.checked = !!s.hideBrand;
+      setHideRecents.checked = !!s.hideRecents;
       applyTheme(s.theme);
+      applyHideBrand(s.hideBrand);
       settingsOpen = true;
       settingsPop.classList.remove('hidden');
     } catch (err) { console.error('settings failed', err); }
@@ -292,7 +316,7 @@
   // ---- notes view (takeover) ----------------------------------------------
   function renderNoteList(notes, preserveScroll) {
     const scrollTop = preserveScroll ? noteListEl.scrollTop : 0;
-    panelTitleEl.textContent = 'Notes' + (notes.length ? ` (${notes.length})` : '');
+    panelTitleEl.textContent = notes.length ? `${notes.length} note${notes.length === 1 ? '' : 's'}` : 'Notes';
     noteListEl.innerHTML = notes.length
       ? notes.map((n) => {
           const when = relativeTime(n.updated);
@@ -343,7 +367,7 @@
   }
 
   // ---- saving --------------------------------------------------------------
-  function doSave(force) {
+  function doSave(force, silent) {
     const text = htmlToMd(ta);
     const id = state.id;
     const g = gen; // snapshot: only apply results if the composer wasn't reset
@@ -367,7 +391,7 @@
           state.created = res.created || state.created;
           state.sessionCreated = true;
         }
-        showStatus('Saved ' + timeStr(new Date(res.updated || Date.now())));
+        if (!silent) showStatus('Saved ' + timeStr(new Date(res.updated || Date.now())));
         renderChips(extractTags(text));
         refreshRecents();
         if (panelOpen) refreshPanel();
@@ -379,7 +403,7 @@
   }
 
   function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(() => doSave(false), 350); }
-  function flushSave() { clearTimeout(saveTimer); doSave(true); return saveChain; }
+  function flushSave() { clearTimeout(saveTimer); doSave(true, true); return saveChain; }
 
   // ---- notes ---------------------------------------------------------------
   async function openNote(id) {
@@ -498,6 +522,8 @@
       if (st.windowVisible) ta.focus();
       const s = await jot.getSettings();
       applyTheme(s.theme);
+      applyHideBrand(s.hideBrand);
+      hideRecents = !!s.hideRecents;
       refreshRecents();
     } catch (err) { console.error('init failed', err); }
   }
@@ -545,6 +571,18 @@
   $('#btn-new').addEventListener('click', () => { flushSave(); newNote(); });
   $('#btn-close').addEventListener('click', () => { flushSave(); jot.hide(); });
 
+  notesCountEl.addEventListener('click', async () => {
+    if (!panelOpen) { openPanel(); return; }
+    try {
+      const res = await jot.recentNotes(1);
+      const latest = res && res.notes && res.notes[0];
+      if (latest) openNote(latest.id);
+      else closePanel();
+    } catch (err) {
+      console.error('open latest failed', err);
+      closePanel();
+    }
+  });
   $('#btn-settings').addEventListener('click', () => toggleSettings());
   $('#set-tips').addEventListener('click', () => toggleTips());
 
@@ -553,6 +591,8 @@
 
   setHideBlur.addEventListener('change', () => jot.setHideOnBlur(setHideBlur.checked));
   setLaunch.addEventListener('change', () => jot.setLaunchAtLogin(setLaunch.checked));
+  setHideBrand.addEventListener('change', () => { applyHideBrand(setHideBrand.checked); jot.setHideBrand(setHideBrand.checked); });
+  setHideRecents.addEventListener('change', () => { hideRecents = setHideRecents.checked; refreshRecents(); jot.setHideRecents(setHideRecents.checked); });
   document.querySelectorAll('.theme-swatch').forEach((sw) => {
     sw.addEventListener('click', () => {
       applyTheme(sw.dataset.theme);
@@ -560,11 +600,10 @@
     });
   });
   $('#set-notes').addEventListener('click', () => { closeSettings(); jot.openNotesFolder(); });
-  $('#set-logs').addEventListener('click', () => { closeSettings(); jot.openLogsFolder(); });
   $('#set-quit').addEventListener('click', () => { closeSettings(); jot.quit(); });
 
   recentsEl.addEventListener('click', (e) => {
-    if (e.target.closest('.recent-more')) { openPanel(); return; }
+    if (e.target.closest('[data-more]')) { openPanel(); return; }
     const card = e.target.closest('.recent-card');
     if (card) openNote(card.dataset.id);
   });

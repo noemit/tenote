@@ -26,6 +26,7 @@ const isMac = process.platform === 'darwin';
 const APP_NAME = 'Tenote';
 const WINDOW_WIDTH = 480;
 const WINDOW_HEIGHT = 340;
+const SHADOW_PAD = 48; // room around the card so the CSS shadow can fade out
 const BLUR_HIDE_DELAY = 160;          // ms after losing focus before hiding
 const TOGGLE_COALESCE_MS = 250;       // swallow double-fire (skhd + built-in shortcut)
 
@@ -63,7 +64,7 @@ let isFirstSession = false;
 
 const settings = loadSettings();
 
-  function defaultSettings() { return { hideOnBlur: false, launchAtLogin: false, firstRunDone: false, theme: 'latte' }; }
+  function defaultSettings() { return { hideOnBlur: false, launchAtLogin: false, hideBrand: false, hideRecents: false, firstRunDone: false, theme: 'latte' }; }
 
 function loadSettings() {
   let raw = null;
@@ -137,10 +138,10 @@ function bootstrap() {
 // ---- window ----------------------------------------------------------------
 function createWindow() {
   win = new BrowserWindow({
-    width: WINDOW_WIDTH,
-    height: WINDOW_HEIGHT,
-    minWidth: 320,
-    minHeight: 220,
+    width: WINDOW_WIDTH + SHADOW_PAD * 2,
+    height: WINDOW_HEIGHT + SHADOW_PAD * 2,
+    minWidth: 320 + SHADOW_PAD * 2,
+    minHeight: 220 + SHADOW_PAD * 2,
     show: false,
     frame: false,
     transparent: true,
@@ -151,7 +152,7 @@ function createWindow() {
     minimizable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    hasShadow: true,
+    hasShadow: false,
     backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -219,11 +220,12 @@ function showWindow() {
     const d = screen.getDisplayNearestPoint(cp);
     const wa = d.workArea;
     const [w, h] = win.getSize();
-    win.setPosition(
-      Math.round(wa.x + (wa.width - w) / 2),
-      Math.round(wa.y + Math.max(24, wa.height * 0.32 - h / 2)),
-      false
-    );
+    // Card is inset by SHADOW_PAD; sit it just below-right of the cursor.
+    let x = cp.x - SHADOW_PAD + 12;
+    let y = cp.y - SHADOW_PAD + 12;
+    x = Math.round(Math.max(wa.x, Math.min(x, wa.x + wa.width - w)));
+    y = Math.round(Math.max(wa.y, Math.min(y, wa.y + wa.height - h)));
+    win.setPosition(x, y, false);
   } catch (e) { logger.warn('window', 'positioning failed', { error: e.message }); }
 
   win.show();
@@ -409,6 +411,16 @@ function setupIpc() {
     settings.theme = ['latte', 'pearl', 'espresso', 'midnight', 'pastel'].includes(t) ? t : 'latte';
     saveSettings();
     logger.info('settings', 'theme (from ui)', { value: settings.theme });
+    return { ...settings };
+  });
+  ipcMain.handle('settings:setHideBrand', (e, value) => {
+    settings.hideBrand = !!value; saveSettings();
+    logger.info('settings', 'hideBrand (from ui)', { value: settings.hideBrand });
+    return { ...settings };
+  });
+  ipcMain.handle('settings:setHideRecents', (e, value) => {
+    settings.hideRecents = !!value; saveSettings();
+    logger.info('settings', 'hideRecents (from ui)', { value: settings.hideRecents });
     return { ...settings };
   });
   ipcMain.handle('logs:openFolder', () => {

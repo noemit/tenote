@@ -16,6 +16,7 @@
       <span id="hint"></span>
       <div class="spacer"></div>
       <span id="status"></span>
+      <button id="btn-notes-count" class="notes-count hidden" title="All notes"></button>
       <button id="btn-settings" class="icon-btn" title="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -31,10 +32,29 @@
         <div id="chips" class="chips hidden"></div>
       </footer>
       <div id="settings-pop" class="settings-pop hidden">
-        <label class="set-row"><input type="checkbox" id="set-hide-blur" /> Hide when focus lost</label>
-        <label class="set-row"><input type="checkbox" id="set-launch" /> Launch at login</label>
+        <div class="set-toggles">
+          <label class="set-toggle">
+            <input type="checkbox" id="set-hide-blur" />
+            <span class="set-toggle-ui"></span>
+            <span class="set-toggle-label">Hide when you click away</span>
+          </label>
+          <label class="set-toggle">
+            <input type="checkbox" id="set-launch" />
+            <span class="set-toggle-ui"></span>
+            <span class="set-toggle-label">Launch at login</span>
+          </label>
+          <label class="set-toggle">
+            <input type="checkbox" id="set-hide-brand" />
+            <span class="set-toggle-ui"></span>
+            <span class="set-toggle-label">Hide Tenote label</span>
+          </label>
+          <label class="set-toggle">
+            <input type="checkbox" id="set-hide-recents" />
+            <span class="set-toggle-ui"></span>
+            <span class="set-toggle-label">Hide recent notes bottom bar</span>
+          </label>
+        </div>
         <div class="set-sep"></div>
-        <div class="set-label">Theme</div>
         <div class="theme-row">
           <button class="theme-swatch" data-theme="latte" title="Latte"></button>
           <button class="theme-swatch" data-theme="pearl" title="Pearl"></button>
@@ -45,7 +65,6 @@
         <div class="set-sep"></div>
         <button id="set-tips" class="set-btn">Tips &amp; shortcuts</button>
         <button id="set-notes" class="set-btn">Open Notes Folder</button>
-        <button id="set-logs" class="set-btn">Open Logs Folder</button>
         <button id="set-quit" class="set-btn set-danger">Quit Tenote</button>
       </div>
       <div id="tips-pop" class="settings-pop tips-pop hidden">
