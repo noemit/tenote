@@ -98,3 +98,7 @@ if (require.main === module) {
 }
 
 module.exports = generate;
+// Shared helpers for scripts/gen-app-icon.js (the app-icon generator).
+module.exports.encodePng = encodePng;
+module.exports.roundedRectSdf = roundedRectSdf;
+module.exports.cov = cov;

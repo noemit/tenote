@@ -11,8 +11,8 @@
     "setup": "node scripts/setup.js",
     "logs": "node scripts/logs.js",
     "log-path": "node scripts/logs.js path",
-    "icons": "node scripts/gen-icons.js",
-    "check": "node --check main.js && node --check logger.js && node --check preload.js && node --check renderer/app.js && node --check scripts/tenotectl.js && node --check scripts/logs.js && node --check scripts/prestart.js && node --check scripts/setup.js && node --check scripts/gen-icons.js",
+    "icons": "node scripts/gen-icons.js && node scripts/gen-app-icon.js",
+    "check": "node --check main.js && node --check logger.js && node --check preload.js && node --check renderer/app.js && node --check scripts/tenotectl.js && node --check scripts/logs.js && node --check scripts/prestart.js && node --check scripts/setup.js && node --check scripts/gen-icons.js && node --check scripts/gen-app-icon.js",
     "dist": "electron-builder --mac"
   },
   "license": "MIT",
