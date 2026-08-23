@@ -1,0 +1,23 @@
+body[data-theme="latte"] {
+  --bg: #f3eadb;
+  --surface: #fbf6ea;
+  --border: #e2d3b8;
+  --text: #3b2d1f;
+  --muted: #9a8461;
+  --accent: #a9762f;
+  --hover: rgba(122, 92, 55, 0.08);
+  --active: rgba(122, 92, 55, 0.13);
+  --app-border: transparent;
+  --bg-solid: #f3eadb;
+  --window-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 14px 36px rgba(0, 0, 0, 0.18);
+  --icon: #6b5233;
+  --placeholder: #b5a07c;
+  --selection: rgba(169, 118, 47, 0.25);
+  --code-bg: rgba(122, 92, 55, 0.12);
+  --scroll: rgba(139, 109, 69, 0.3);
+  --scroll-hover: rgba(139, 109, 69, 0.45);
+  --shadow: 0 8px 28px rgba(90, 66, 38, 0.12);
+  --pop: #fbf6ea;
+  --tile: #efe4d0;
+  --danger: #b03a2e;
+}

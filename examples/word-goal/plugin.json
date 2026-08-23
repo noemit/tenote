@@ -1,0 +1,6 @@
+{
+  "name": "word-goal",
+  "version": "1.0.0",
+  "description": "Daily word goal with progress chip and celebration.",
+  "renderer": "renderer.js"
+}

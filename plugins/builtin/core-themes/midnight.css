@@ -1,0 +1,27 @@
+body[data-theme="midnight"] {
+  --bg: #1e232c;
+  --surface: #272e3a;
+  --border: #37404f;
+  --text: #e6ebf2;
+  --muted: #8d98ab;
+  --accent: #7ba3f7;
+  --hover: rgba(255, 255, 255, 0.06);
+  --active: rgba(255, 255, 255, 0.1);
+  --app-border: rgba(255, 255, 255, 0.09);
+  --bg-solid: #1e232c;
+  --window-shadow: 0 10px 28px rgba(0, 0, 0, 0.36);
+  --icon: #b8c2d1;
+  --placeholder: #6b7688;
+  --selection: rgba(123, 163, 247, 0.3);
+  --code-bg: rgba(255, 255, 255, 0.07);
+  --scroll: rgba(255, 255, 255, 0.16);
+  --scroll-hover: rgba(255, 255, 255, 0.28);
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --pop: #272e3a;
+  --tile: #222933;
+  --danger: #e88a7e;
+}
+
+body[data-theme="midnight"] #app {
+  box-shadow: 0 0 0 1px var(--app-border), var(--window-shadow);
+}

@@ -1,0 +1,27 @@
+body[data-theme="espresso"] {
+  --bg: #2a211b;
+  --surface: #382d24;
+  --border: #4a3d31;
+  --text: #efe6da;
+  --muted: #a8967f;
+  --accent: #d4a05e;
+  --hover: rgba(255, 255, 255, 0.06);
+  --active: rgba(255, 255, 255, 0.1);
+  --app-border: rgba(255, 255, 255, 0.1);
+  --bg-solid: #2a211b;
+  --window-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+  --icon: #cbb9a4;
+  --placeholder: #7d6f5e;
+  --selection: rgba(212, 160, 94, 0.3);
+  --code-bg: rgba(255, 255, 255, 0.08);
+  --scroll: rgba(255, 255, 255, 0.18);
+  --scroll-hover: rgba(255, 255, 255, 0.3);
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  --pop: #382d24;
+  --tile: #2f261e;
+  --danger: #e88a7e;
+}
+
+body[data-theme="espresso"] #app {
+  box-shadow: 0 0 0 1px var(--app-border), var(--window-shadow);
+}

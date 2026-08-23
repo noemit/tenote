@@ -1,0 +1,27 @@
+body[data-theme="forest"] {
+  --bg: #1c241c;
+  --surface: #263026;
+  --border: #39473a;
+  --text: #e4ecdf;
+  --muted: #87977f;
+  --accent: #8fb573;
+  --hover: rgba(255, 255, 255, 0.06);
+  --active: rgba(255, 255, 255, 0.10);
+  --app-border: rgba(255, 255, 255, 0.10);
+  --bg-solid: #1c241c;
+  --window-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+  --icon: #b3c4a6;
+  --placeholder: #67755f;
+  --selection: rgba(143, 181, 115, 0.30);
+  --code-bg: rgba(255, 255, 255, 0.08);
+  --scroll: rgba(255, 255, 255, 0.18);
+  --scroll-hover: rgba(255, 255, 255, 0.30);
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.40);
+  --pop: #263026;
+  --tile: #212a21;
+  --danger: #e88a7e;
+}
+
+body[data-theme="forest"] #app {
+  box-shadow: 0 0 0 1px var(--app-border), var(--window-shadow);
+}

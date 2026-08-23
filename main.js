@@ -11,9 +11,10 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const net = require('net');
+const { execFile } = require('child_process');
 
 const {
-  app, BrowserWindow, globalShortcut, Tray, Menu, ipcMain, screen, shell, nativeImage, clipboard, protocol,
+  app, BrowserWindow, globalShortcut, Tray, Menu, ipcMain, screen, shell, nativeImage, clipboard, protocol, dialog,
 } = require('electron');
 
 
@@ -32,23 +33,26 @@ const MIN_WINDOW_HEIGHT = 220 + SHADOW_PAD * 2;
 const BLUR_HIDE_DELAY = 160;          // ms after losing focus before hiding
 const TOGGLE_COALESCE_MS = 250;       // swallow double-fire (skhd + built-in shortcut)
 
-// Built-in global shortcut. Set TENOTE_SHORTCUT=0 to disable (use skhd instead),
-// or TENOTE_SHORTCUT='Ctrl+Shift+Space' etc. to override.
-const SHORTCUT = process.env.TENOTE_SHORTCUT === '0' ? null : (process.env.TENOTE_SHORTCUT || 'Alt+.');
-const FALLBACK_SHORTCUT = 'Alt+Shift+.';
+// Built-in global shortcut is registered by the core-shortcuts builtin plugin.
+// Set TENOTE_SHORTCUT=0 to disable (use skhd instead), or TENOTE_SHORTCUT='Ctrl+Shift+Space' etc.
 
 const NOTES_DIR = path.join(app.getPath('documents'), 'Tenote Notes');
 const SETTINGS_PATH = path.join(app.getPath('userData'), 'settings.json');
+const PLUGINS_USER_DIR = path.join(app.getPath('userData'), 'plugins');
+const PLUGIN_DATA_ROOT = path.join(app.getPath('userData'), 'plugin-data');
 // TENOTE_SOCKET must match scripts/tenotectl.js (and any skhd binding that uses it).
 const SOCKET_PATH = process.env.TENOTE_SOCKET
   || path.join(os.tmpdir(), `tenote-${typeof process.getuid === 'function' ? process.getuid() : process.pid}.sock`);
 const TRAY_ICON = path.join(__dirname, 'assets', 'trayTemplate.png');
+const BUILTIN_SHORTCUT = process.env.TENOTE_SHORTCUT === '0' ? null : process.env.TENOTE_SHORTCUT || 'Alt+.';
 
 app.setName(APP_NAME);
 
-// Serve pasted images (stored under NOTES_DIR/images) to the renderer.
+// Serve pasted images (stored under NOTES_DIR/images) and plugin renderer/theme
+// assets to the renderer.
 protocol.registerSchemesAsPrivileged([
   { scheme: 'timg', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+  { scheme: 'tnplug', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 logger.init();
 logger.setLevel(process.env.TENOTE_LOG_LEVEL === 'debug' ? 'debug' : 'info');
@@ -65,14 +69,49 @@ let activeShortcut = null;
 let isFirstSession = false;
 
 const settings = loadSettings();
+const host = require('./lib/host').createHost({
+  logger,
+  settings,
+  pluginDataRoot: PLUGIN_DATA_ROOT,
+  persistSettings: saveSettings,
+  envFiles: (process.env.TENOTE_PLUGINS || '').split(path.delimiter).filter(Boolean),
+  layers: [
+    { name: 'builtin', dir: path.join(__dirname, 'plugins', 'builtin') },
+    { name: 'user', dir: PLUGINS_USER_DIR },
+  ],
+  onTrayDirty: () => rebuildTrayMenu(),
+  onShortcut: registerPluginShortcut,
+  hostService: handleHostService,
+  onEmit: (event, payload) => {
+    try { if (win && !win.isDestroyed()) win.webContents.send('plugin:event', { event, payload }); } catch (e) { /* ignore */ }
+  },
+  kernel: {
+    notesDir: NOTES_DIR,
+    notes: { list: listNotes, read: readNote, save: saveNote, recent: recentNotes },
+    window: { toggle: toggleWindow, show: showWindow, hide: hideWindow },
+    app: { quit: quitApp },
+    system: { status: systemStatus },
+  },
+});
 
-  function defaultSettings() { return { hideOnBlur: false, launchAtLogin: false, hideBrand: false, hideRecents: false, showDockIcon: false, firstRunDone: false, theme: 'latte' }; }
+function defaultSettings() {
+  return {
+    hideOnBlur: false, launchAtLogin: false, hideBrand: false, hideRecents: false,
+    showDockIcon: false, firstRunDone: false, theme: 'latte',
+    plugins: { disabled: [], paths: [], values: {} },
+  };
+}
 
 function loadSettings() {
   let raw = null;
   try { raw = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8')); }
   catch (e) { /* first run — no settings file yet */ }
-  return Object.assign(defaultSettings(), raw || {});
+  const merged = Object.assign(defaultSettings(), raw || {});
+  merged.plugins = Object.assign(defaultSettings().plugins, (raw && raw.plugins) || {});
+  if (!Array.isArray(merged.plugins.disabled)) merged.plugins.disabled = [];
+  if (!Array.isArray(merged.plugins.paths)) merged.plugins.paths = [];
+  if (!merged.plugins.values || typeof merged.plugins.values !== 'object') merged.plugins.values = {};
+  return merged;
 }
 
 // Write then rename so a crash mid-write can't leave a truncated file.
@@ -131,7 +170,7 @@ function bootstrap() {
   logger.info('app', 'bootstrap', {
     version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
     node: process.versions.node, platform: process.platform, arch: process.arch,
-    shortcut: SHORTCUT, notesDir: NOTES_DIR, socket: SOCKET_PATH, logFile: logger.getLogFile(),
+    shortcut: BUILTIN_SHORTCUT, notesDir: NOTES_DIR, socket: SOCKET_PATH, logFile: logger.getLogFile(),
     hideOnBlur: settings.hideOnBlur, launchAtLogin: settings.launchAtLogin,
     startedAt,
   });
@@ -139,12 +178,15 @@ function bootstrap() {
   applyDockIcon();
   try { ensureTrayIcon(); } catch (e) { logger.warn('icons', 'icon generation failed', { error: e.message }); }
 
+  host.discover();
+  host.activateAll();
+
   startSocketServer();
   createWindow();
   setupTray();
   setupIpc();
   setupImageProtocol();
-  registerShortcuts();
+  setupPluginProtocol();
   if (isMac) applyLoginItem();
 
   if (!settings.firstRunDone) {
@@ -191,7 +233,10 @@ function createWindow() {
 
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
-  win.webContents.on('did-finish-load', () => logger.debug('window', 'renderer did-finish-load', { ms: Date.now() - startedAt }));
+  win.webContents.on('did-finish-load', () => {
+    logger.debug('window', 'renderer did-finish-load', { ms: Date.now() - startedAt });
+    injectRendererPlugins();
+  });
   win.webContents.on('did-fail-load', (e, code, desc, url) => logger.error('window', 'did-fail-load', { code, desc, url }));
   win.webContents.on('render-process-gone', (e, details) => logger.error('window', 'render-process-gone', details));
   win.webContents.on('console-message', (details, level, message, line, sourceId) => {
@@ -223,7 +268,7 @@ function createWindow() {
       setTimeout(() => {
         if (win && win.isVisible() && !win.isFocused() && !trayMenuOpen) {
           logger.debug('window', 'blur -> hide');
-          win.hide();
+          hideWindow();
         }
       }, BLUR_HIDE_DELAY);
     }
@@ -292,6 +337,17 @@ function showWindow() {
   if (isMac) { try { app.focus({ steal: true }); } catch (e) { /* ignore */ } }
   setTimeout(() => { if (win && win.isVisible() && !win.isFocused()) win.focus(); }, 80);
   try { win.webContents.send('window:shown'); } catch (e) { /* renderer may not be ready yet */ }
+  firePluginEvent('window:shown', {});
+}
+
+function hideWindow() {
+  stopResize();
+  if (win) win.hide();
+  firePluginEvent('window:hidden', {});
+}
+
+function firePluginEvent(event, payload) {
+  try { host.emit(event, payload); } catch (e) { logger.error('plugins', `emit ${event}`, { error: e.message }); }
 }
 
 function toggleWindow() {
@@ -302,27 +358,29 @@ function toggleWindow() {
   }
   lastToggleAt = now;
   if (!win) return;
-  if (win.isVisible()) { stopResize(); win.hide(); }
+  if (win.isVisible()) { hideWindow(); }
   else showWindow();
 }
 
-// ---- shortcuts -------------------------------------------------------------
-function registerShortcuts() {
-  if (!SHORTCUT) { logger.info('shortcut', 'built-in shortcut disabled (TENOTE_SHORTCUT=0) — use skhd'); return; }
+// ---- shortcuts (registered by plugins via the host) ------------------------
+function registerPluginShortcut({ accelerator, fn }) {
   try {
-    if (globalShortcut.register(SHORTCUT, toggleWindow)) {
-      activeShortcut = SHORTCUT;
-      logger.info('shortcut', 'registered', { shortcut: SHORTCUT });
-    } else {
-      logger.warn('shortcut', 'primary registration failed — trying fallback', { shortcut: SHORTCUT });
-      if (globalShortcut.register(FALLBACK_SHORTCUT, toggleWindow)) {
-        activeShortcut = FALLBACK_SHORTCUT;
-        logger.info('shortcut', 'registered fallback', { shortcut: FALLBACK_SHORTCUT });
-      } else {
-        logger.error('shortcut', 'all built-in shortcuts failed — use the skhd binding instead (scripts/tenotectl.js)');
-      }
-    }
-  } catch (e) { logger.error('shortcut', 'register threw', { error: e.message }); }
+    if (!globalShortcut.register(accelerator, () => {
+      const r = hostSafeCall('shortcut', accelerator, fn);
+      void r;
+    })) return false;
+    activeShortcut = accelerator;
+    logger.info('shortcut', 'registered', { shortcut: accelerator });
+    return true;
+  } catch (e) {
+    logger.warn('shortcut', 'register threw', { shortcut: accelerator, error: e.message });
+    return false;
+  }
+}
+
+function hostSafeCall(label, owner, fn) {
+  try { return fn(); }
+  catch (e) { logger.error('plugins', `${label} threw (${owner})`, { error: e && e.stack || String(e) }); }
 }
 
 // ---- socket server (used by skhd -> scripts/tenotectl.js) ------------------
@@ -354,14 +412,125 @@ function startSocketServer() {
 function handleSocketCommand(cmd, sock) {
   logger.info('socket', 'command', { cmd });
   const reply = (s) => { try { sock.end(s); } catch (e) { /* ignore */ } };
-  switch (cmd) {
-    case 'toggle': toggleWindow(); reply('ok\n'); break;
-    case 'show': showWindow(); reply('ok\n'); break;
-    case 'hide': if (win) win.hide(); reply('ok\n'); break;
-    case 'quit': reply('ok\n'); setTimeout(quitApp, 50); break;
-    case 'status': reply(JSON.stringify({ running: true, visible: !!(win && win.isVisible()), shortcut: activeShortcut }) + '\n'); break;
-    default: reply('unknown command: ' + cmd + '\n');
+  if (host.hasCommand(cmd)) {
+    const result = host.runCommand(cmd);
+    Promise.resolve(result)
+      .then((r) => reply(formatReply(r)))
+      .catch((e) => { logger.error('socket', `command ${cmd} failed`, { error: e && e.message || e }); reply('error\n'); });
+    return;
   }
+  reply('unknown command: ' + cmd + '\n');
+}
+
+function formatReply(r) {
+  if (r === undefined || r === null) return 'ok\n';
+  if (typeof r === 'string') return r.endsWith('\n') ? r : r + '\n';
+  try { return JSON.stringify(r) + '\n'; } catch (e) { return 'ok\n'; }
+}
+
+function systemStatus() {
+  return {
+    running: true,
+    visible: !!(win && win.isVisible()),
+    shortcut: shortcutLabel(),
+    version: app.getVersion(),
+    plugins: host.publicList(),
+  };
+}
+
+// ---- plugin installation (settings → Plugins → Install from file…) ---------
+const PLUGIN_NAME_RE = /^[\w][\w.-]{0,63}$/;
+
+async function installPluginInteractive() {
+  let picked;
+  try {
+    picked = await dialog.showOpenDialog(win, {
+      title: 'Choose a Tenote plugin',
+      buttonLabel: 'Install',
+      properties: ['openFile', 'openDirectory'],
+      filters: [
+        { name: 'Tenote plugin (.zip, .js, folder)', extensions: ['zip', 'js'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+  if (picked.canceled || !picked.filePaths.length) return { ok: false, canceled: true };
+  try {
+    const name = await installPluginFrom(picked.filePaths[0]);
+    logger.info('plugins', `installed "${name}" from ${picked.filePaths[0]}`);
+    return { ok: true, name };
+  } catch (e) {
+    logger.warn('plugins', `install failed (${picked.filePaths[0]})`, { error: e.message });
+    return { ok: false, error: e.message };
+  }
+}
+
+function installPluginFrom(src) {
+  if (/\.zip$/i.test(src)) return installZippedPlugin(src);
+  return Promise.resolve().then(() => placePlugin(src));
+}
+
+function installZippedPlugin(zipPath) {
+  const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'tenote-plugin-'));
+  return new Promise((resolve, reject) => {
+    execFile('/usr/bin/ditto', ['-x', '-k', zipPath, staging], (err) => {
+      if (err) { try { fs.rmSync(staging, { recursive: true, force: true }); } catch (e2) { /* ignore */ } return reject(new Error('could not unpack the zip')); }
+      try {
+        const root = findPluginRoot(staging);
+        const name = placePlugin(root);
+        resolve(name);
+      } catch (e) {
+        reject(e);
+      } finally {
+        try { fs.rmSync(staging, { recursive: true, force: true }); } catch (e2) { /* ignore */ }
+      }
+    });
+  });
+}
+
+function findPluginRoot(dir) {
+  if (fs.existsSync(path.join(dir, 'plugin.json')) || fs.existsSync(path.join(dir, 'index.js'))) return dir;
+  try {
+    const subs = fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => path.join(dir, d.name)).sort();
+    for (const sub of subs) {
+      if (fs.existsSync(path.join(sub, 'plugin.json')) || fs.existsSync(path.join(sub, 'index.js'))) return sub;
+    }
+  } catch (e) { /* fallthrough */ }
+  throw new Error('no plugin found in the zip (looking for plugin.json or index.js)');
+}
+
+function placePlugin(src) {
+  let st;
+  try { st = fs.statSync(src); } catch (e) { throw new Error('file not found'); }
+  const isDir = st.isDirectory();
+  const base = path.basename(src, isDir ? '' : '.js');
+  let manifestName = null;
+  if (isDir) {
+    try {
+      const m = JSON.parse(fs.readFileSync(path.join(src, 'plugin.json'), 'utf8'));
+      if (m && typeof m.name === 'string') manifestName = m.name;
+    } catch (e) { /* manifest optional */ }
+  }
+  const name = manifestName || base;
+  if (!PLUGIN_NAME_RE.test(name)) throw new Error(`invalid plugin name: ${name}`);
+  const looksLikePlugin = !isDir
+    || fs.existsSync(path.join(src, 'plugin.json'))
+    || fs.existsSync(path.join(src, 'index.js'))
+    || fs.readdirSync(src).some((f) => f.endsWith('.js'));
+  if (!looksLikePlugin) throw new Error('that folder does not look like a Tenote plugin');
+  const dest = path.join(PLUGINS_USER_DIR, name);
+  if (!path.resolve(dest).startsWith(PLUGINS_USER_DIR + path.sep)) throw new Error('bad destination');
+  if (fs.existsSync(dest)) throw new Error(`"${name}" is already installed — remove it first (Open plugins folder)`);
+  fs.mkdirSync(PLUGINS_USER_DIR, { recursive: true });
+  try {
+    fs.renameSync(src, dest);
+  } catch (e) {
+    fs.cpSync(src, dest, { recursive: true });
+    fs.rmSync(src, { recursive: true, force: true });
+  }
+  return name;
 }
 
 // ---- tray ------------------------------------------------------------------
@@ -383,7 +552,7 @@ function setupTray() {
 
 function rebuildTrayMenu() {
   if (!tray) return;
-  const menu = Menu.buildFromTemplate([
+  const template = [
     { label: 'Open Tenote', click: () => showWindow() },
     {
       label: 'All notes',
@@ -399,14 +568,21 @@ function rebuildTrayMenu() {
         catch (e) { logger.warn('tray', 'open folder failed', { error: e.message }); }
       },
     },
+  ];
+  const pluginItems = trayPluginItems();
+  if (pluginItems.length) {
+    template.push({ type: 'separator' });
+    template.push(...pluginItems);
+  }
+  template.push(
     { type: 'separator' },
     {
       label: 'Hide when focus lost', type: 'checkbox', checked: settings.hideOnBlur,
-      click: (item) => { settings.hideOnBlur = item.checked; saveSettings(); logger.info('settings', 'hideOnBlur', { value: settings.hideOnBlur }); },
+      click: (item) => { settings.hideOnBlur = item.checked; saveSettings(); rebuildTrayMenu(); logger.info('settings', 'hideOnBlur', { value: settings.hideOnBlur }); },
     },
     {
       label: 'Launch at login', type: 'checkbox', checked: settings.launchAtLogin,
-      click: (item) => { settings.launchAtLogin = item.checked; saveSettings(); applyLoginItem(); logger.info('settings', 'launchAtLogin', { value: settings.launchAtLogin }); },
+      click: (item) => { settings.launchAtLogin = item.checked; saveSettings(); applyLoginItem(); rebuildTrayMenu(); logger.info('settings', 'launchAtLogin', { value: settings.launchAtLogin }); },
     },
     {
       label: 'Show in Dock', type: 'checkbox', checked: settings.showDockIcon,
@@ -418,18 +594,31 @@ function rebuildTrayMenu() {
     { type: 'separator' },
     { label: shortcutHintLabel(), enabled: false },
     { label: 'Quit Tenote', click: () => quitApp() },
-  ]);
+  );
+  const menu = Menu.buildFromTemplate(template);
   tray.setContextMenu(menu);
 }
 
+function trayPluginItems() {
+  const items = host._internal.trayItems;
+  if (!items.length) return [];
+  const out = items.map((it) => ({
+    label: it.label,
+    type: it.type,
+    checked: it.checked || undefined,
+    click: () => hostSafeCall('tray item', it.owner, it.click),
+  }));
+  return [{ label: 'Plugins', enabled: false }, ...out];
+}
+
 function shortcutLabel() {
-  const s = activeShortcut || SHORTCUT;
+  const s = activeShortcut || BUILTIN_SHORTCUT;
   if (!s) return 'via skhd';
   return s.split('+').map((p) => ({ Alt: '⌥', Shift: '⇧', CommandOrControl: '⌘', CmdOrCtrl: '⌘', Command: '⌘', Control: '⌃' }[p] || p)).join('');
 }
 
 function shortcutHintLabel() {
-  const s = activeShortcut || SHORTCUT;
+  const s = activeShortcut || BUILTIN_SHORTCUT;
   if (!s) return 'Toggle with your skhd binding';
   return `Press ${shortcutLabel()} anywhere to show/hide Tenote`;
 }
@@ -450,7 +639,7 @@ function setupIpc() {
   });
 
   ipcMain.handle('window:toggle', () => { toggleWindow(); return { visible: !!(win && win.isVisible()) }; });
-  ipcMain.handle('window:hide', () => { stopResize(); if (win) win.hide(); return true; });
+  ipcMain.handle('window:hide', () => { hideWindow(); return true; });
   ipcMain.handle('window:resizeStart', (e, edge) => { startResize(edge); return true; });
   ipcMain.handle('window:resizeEnd', () => { stopResize(); return true; });
   ipcMain.handle('state:get', () => ({
@@ -472,9 +661,10 @@ function setupIpc() {
   });
   ipcMain.handle('settings:setTheme', (e, value) => {
     const t = String(value || 'latte');
-    settings.theme = ['latte', 'pearl', 'espresso', 'midnight', 'pastel'].includes(t) ? t : 'latte';
+    settings.theme = host.hasTheme(t) ? t : 'latte';
     saveSettings();
     logger.info('settings', 'theme (from ui)', { value: settings.theme });
+    firePluginEvent('theme:changed', { theme: settings.theme });
     return { ...settings };
   });
   ipcMain.handle('settings:setHideBrand', (e, value) => {
@@ -500,9 +690,72 @@ function setupIpc() {
 
   ipcMain.handle('note:save', (e, payload) => wrapIpc('note:save', payload, saveNote));
   ipcMain.handle('note:list', (e) => wrapIpc('note:list', null, listNotes));
-  ipcMain.handle('note:read', (e, id) => wrapIpc('note:read', id, readNote));
+  ipcMain.handle('note:read', (e, id) => wrapIpc('note:read', id, (cleanId) => {
+    const note = readNote(cleanId);
+    if (note) firePluginEvent('note:opened', { id: note.id });
+    return note;
+  }));
   ipcMain.handle('note:recent', (e, limit) => wrapIpc('note:recent', limit, recentNotes));
   ipcMain.handle('note:attach', (e, payload) => wrapIpc('note:attach', payload, attachImage));
+
+  ipcMain.handle('plugin:invoke', async (e, payload) => {
+    try {
+      const p = payload || {};
+      const result = await host.invoke(String(p.plugin || ''), String(p.method || ''), p.args);
+      return { ok: true, result };
+    } catch (err) {
+      logger.warn('plugins', 'invoke failed', { error: err && err.message || err });
+      return { ok: false, error: String(err && err.message || err) };
+    }
+  });
+}
+
+function handleHostService(method, args) {
+  const a = args || {};
+  switch (method) {
+    case 'state':
+      return { plugins: host.publicList(), themes: host.themeList(), themeId: settings.theme || 'latte' };
+    case 'themeCss': {
+      if (!host.hasTheme(String(a.id))) throw new Error('unknown theme');
+      return host.themeCss(String(a.id));
+    }
+    case 'setEnabled':
+      host.setEnabled(String(a.name), !!a.enabled);
+      logger.info('plugins', `setEnabled ${a.name} -> ${!!a.enabled}`);
+      rebuildTrayMenu();
+      return { ok: true, relaunchNeeded: true };
+    case 'openPluginsFolder': {
+      try { fs.mkdirSync(PLUGINS_USER_DIR, { recursive: true }); } catch (e) { /* ignore */ }
+      shell.openPath(PLUGINS_USER_DIR);
+      return true;
+    }
+    case 'installPlugin':
+      return installPluginInteractive();
+    case 'copyPng': {
+      try {
+        const buf = Buffer.from(String(a.base64 || ''), 'base64');
+        clipboard.writeImage(nativeImage.createFromBuffer(buf));
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: e.message };
+      }
+    }
+    case 'getPluginSettings': {
+      const name = String(a.name || '');
+      return (settings.plugins.values[name] && typeof settings.plugins.values[name] === 'object')
+        ? { ...settings.plugins.values[name] } : {};
+    }
+    case 'setPluginSetting': {
+      const name = String(a.name || '');
+      if (!host.publicList().some((p) => p.name === name)) throw new Error('unknown plugin');
+      if (!settings.plugins.values[name] || typeof settings.plugins.values[name] !== 'object') settings.plugins.values[name] = {};
+      settings.plugins.values[name][String(a.key)] = a.value;
+      saveSettings();
+      return { ok: true };
+    }
+    default:
+      throw new Error('unknown host method: ' + method);
+  }
 }
 
 function wrapIpc(name, payload, fn) {
@@ -548,9 +801,9 @@ function readNoteMeta(id) {
 
 function saveNote(payload) {
   const p = payload || {};
-  const text = String(p.text || '');
-  const now = new Date();
-  let id = safeId(p.id);
+  const piped = host.applyBeforeSave({ id: safeId(p.id), text: String(p.text || ''), tags: Array.isArray(p.tags) ? p.tags : [] });
+  const text = String(piped.text || '');
+  let id = safeId(piped.id);
   let created = null;
 
   if (id) {
@@ -558,7 +811,7 @@ function saveNote(payload) {
     created = existing ? existing.created : null;
   } else {
     // New note: two notes started in the same second must not share a file.
-    const base = formatTimestamp(now);
+    const base = formatTimestamp(now());
     id = base;
     let n = 2;
     while (fs.existsSync(noteFile(id))) id = `${base}-${n++}`;
@@ -570,16 +823,20 @@ function saveNote(payload) {
     if (fs.existsSync(file)) {
       fs.unlinkSync(file);
       logger.info('note', 'deleted empty note', { id });
+      firePluginEvent('note:saved', { id, deleted: true });
     }
     return { ok: true, id, deleted: true };
   }
 
   fs.mkdirSync(NOTES_DIR, { recursive: true });
-  const meta = { id, created: created || now.toISOString(), updated: now.toISOString(), tags: sanitizeTags(p.tags) };
+  const meta = { id, created: created || now().toISOString(), updated: now().toISOString(), tags: sanitizeTags(piped.tags) };
   atomicWriteFileSync(file, serializeNote(meta, text), 'utf8');
   logger.debug('note', 'saved', { id, length: text.length, tags: meta.tags });
+  firePluginEvent('note:saved', { id, deleted: false, updated: meta.updated });
   return { ok: true, id, created: meta.created, updated: meta.updated, path: file, deleted: false };
 }
+
+function now() { return new Date(); }
 
 function sanitizeTags(tags) {
   if (!Array.isArray(tags)) return [];
@@ -729,6 +986,35 @@ function setupImageProtocol() {
   }
 }
 
+// Serve plugin renderer/theme assets to the renderer via tnplug://p/<name>/<file>.
+// Only files the host discovered are served; anything else 403s.
+function setupPluginProtocol() {
+  try {
+    protocol.handle('tnplug', (request) => {
+      try {
+        const u = new URL(request.url);
+        const parts = decodeURIComponent(u.pathname.replace(/^\//, '')).split('/').filter(Boolean);
+        if (u.hostname !== 'p' || parts.length !== 2) return new Response('forbidden', { status: 403 });
+        const [name, file] = parts;
+        const entry = host.fileAllowlist().get(name);
+        if (!entry || !entry.files.has(file)) return new Response('forbidden', { status: 403 });
+        if (/[/\\]|\.\./.test(file)) return new Response('forbidden', { status: 403 });
+        const abs = path.join(entry.dir, file);
+        if (!abs.startsWith(entry.dir + path.sep)) return new Response('forbidden', { status: 403 });
+        const mime = { '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' }[path.extname(file)] || null;
+        if (!mime) return new Response('forbidden', { status: 403 });
+        return new Response(fs.readFileSync(abs), { headers: { 'Content-Type': mime } });
+      } catch (e) {
+        logger.warn('protocol', 'tnplug failed', { error: e.message });
+        return new Response('error', { status: 500 });
+      }
+    });
+    logger.info('protocol', 'tnplug ready');
+  } catch (e) {
+    logger.error('protocol', 'setup failed', { error: e.message });
+  }
+}
+
 function titleOf(body) {
   for (const line of body.split(/\r?\n/)) {
     const t = line.trim().replace(/^#+\s*/, '');
@@ -749,12 +1035,52 @@ function ensureTrayIcon() {
   require('./scripts/gen-icons')(path.join(__dirname, 'assets'));
 }
 
+function localJsonRequires(src, pluginDir) {
+  const map = {};
+  const re = /require\(\s*['"]\.\/([^'"]+\.json)['"]\s*\)/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const rel = m[1];
+    if (!rel || /[/\\]|\.\./.test(rel)) continue;
+    const abs = path.join(pluginDir, rel);
+    if (!abs.startsWith(pluginDir + path.sep)) continue;
+    try { map[rel] = JSON.parse(fs.readFileSync(abs, 'utf8')); }
+    catch (e) { logger.warn('plugins', `json require failed: ${rel}`, { error: e.message }); }
+  }
+  return map;
+}
+
+function injectRendererPlugins() {
+  const entries = host.rendererEntries();
+  if (!entries.length) return;
+  (async () => {
+    for (const entry of entries) {
+      try {
+        const src = fs.readFileSync(entry.path, 'utf8');
+        const jsonMap = localJsonRequires(src, path.dirname(entry.path));
+        const requireShim = `var require=function(p){p=String(p).replace(/^\\.\\//,'');`
+          + `var m=${JSON.stringify(jsonMap)};`
+          + `if(!Object.prototype.hasOwnProperty.call(m,p))throw new Error('cannot require '+p);return m[p];};`;
+        const wrapped = `(function(){var module={exports:{}};var exports=module.exports;${requireShim}(function(){\n${src}\n})();`
+          + `var e=module.exports;if(typeof e!=="function"&&e&&typeof e.activate==="function")e=e.activate;`
+          + `if(typeof e!=="function")throw new Error("renderer export must be a function");`
+          + `window.__tenoteReady(${JSON.stringify(entry.id)},e);})()`;
+        await win.webContents.executeJavaScript(wrapped, true);
+        logger.info('plugins', `renderer part activated: ${entry.id}`);
+      } catch (e) {
+        logger.error('plugins', `renderer injection failed: ${entry.id}`, { error: e && e.message || e });
+      }
+    }
+  })();
+}
+
 function quitApp() { isQuitting = true; app.quit(); }
 
 // ---- app events ------------------------------------------------------------
 app.on('before-quit', () => { isQuitting = true; logger.info('app', 'before-quit'); });
 app.on('will-quit', () => {
   logger.info('app', 'will-quit');
+  try { host.shutdown(); } catch (e) { logger.error('plugins', 'shutdown hook failed', { error: e.message }); }
   try { globalShortcut.unregisterAll(); } catch (e) { /* ignore */ }
   try { if (fs.existsSync(SOCKET_PATH)) fs.unlinkSync(SOCKET_PATH); } catch (e) { /* ignore */ }
   logger.flush();

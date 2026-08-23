@@ -125,6 +125,7 @@
       if (/^(<h[123]>|<ul>|<img)/.test(t)) return t;
       return `<p>${t.replace(/\n/g, '<br>')}</p>`;
     }).join('\n');
+    if (window.__tenoteMd) html = window.__tenoteMd.toHtml(html);
     return html;
   }
 
@@ -172,6 +173,7 @@
   }
 
   function htmlToMd(root) {
+    if (window.__tenoteMd) window.__tenoteMd.beforeSerialize(root);
     return Array.from(root.childNodes)
       .map((n) => (n.nodeType === 3 ? n.nodeValue : n.nodeType === 1 ? blockMd(n) : ''))
       .join('\n');
@@ -264,9 +266,8 @@
 
   // ---- settings popover ----------------------------------------------------
   function applyTheme(t) {
-    const theme = ['latte', 'pearl', 'espresso', 'midnight', 'pastel'].includes(t) ? t : 'latte';
-    document.body.dataset.theme = theme;
-    document.querySelectorAll('.theme-swatch').forEach((sw) => sw.classList.toggle('active', sw.dataset.theme === theme));
+    document.body.dataset.theme = t || 'latte';
+    document.querySelectorAll('.theme-swatch').forEach((sw) => sw.classList.toggle('active', sw.dataset.theme === t));
   }
 
   function applyHideBrand(hide) {
@@ -533,7 +534,20 @@
     // Chrome leaves a stray <br> in an emptied composer — clear it so the placeholder returns.
     if (!ta.textContent && !ta.querySelector('img')) ta.innerHTML = '';
     scheduleSave();
+    if (window.__tenoteInput) window.__tenoteInput();
   });
+
+  window.__tenoteComposer = {
+    insertText(t) { insertNodeAtCaret(document.createTextNode(t)); },
+    isEmpty() { return !ta.textContent && !ta.querySelector('img'); },
+    getText() { return htmlToMd(ta); },
+  };
+
+  window.__tenoteUiHooks = {
+    flushSave,
+    openNote,
+    beforeView() { closeSettings(); closeTips(); if (panelOpen) closePanel(); },
+  };
 
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText', false, '  '); }
@@ -546,9 +560,11 @@
   welcomeEl.addEventListener('click', dismissWelcome);
 
   window.addEventListener('keydown', (e) => {
+    if (window.__tenoteKeys && window.__tenoteKeys(e)) return;
     if (e.key === 'Escape') {
       e.preventDefault();
       if (welcomeVisible()) dismissWelcome();
+      else if (window.__tenoteEscape && window.__tenoteEscape()) return;
       else if (settingsOpen) closeSettings();
       else if (tipsOpen) closeTips();
       else if (panelOpen) closePanel();
@@ -602,12 +618,6 @@
   setLaunch.addEventListener('change', () => jot.setLaunchAtLogin(setLaunch.checked));
   setHideBrand.addEventListener('change', () => { applyHideBrand(setHideBrand.checked); jot.setHideBrand(setHideBrand.checked); });
   setHideRecents.addEventListener('change', () => { hideRecents = setHideRecents.checked; refreshRecents(); jot.setHideRecents(setHideRecents.checked); });
-  document.querySelectorAll('.theme-swatch').forEach((sw) => {
-    sw.addEventListener('click', () => {
-      applyTheme(sw.dataset.theme);
-      jot.setTheme(sw.dataset.theme);
-    });
-  });
   $('#set-notes').addEventListener('click', () => { closeSettings(); jot.openNotesFolder(); });
   $('#set-quit').addEventListener('click', () => { closeSettings(); jot.quit(); });
 

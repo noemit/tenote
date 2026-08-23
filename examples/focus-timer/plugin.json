@@ -1,0 +1,6 @@
+{
+  "name": "focus-timer",
+  "version": "1.0.0",
+  "description": "Pomodoro chip \u2014 \u2318\u21e7F or click to start; configurable lengths.",
+  "renderer": "renderer.js"
+}

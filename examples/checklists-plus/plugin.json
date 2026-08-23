@@ -1,0 +1,6 @@
+{
+  "name": "checklists-plus",
+  "version": "1.0.0",
+  "description": "- [ ] / - [x] task lists with clickable checkboxes that round-trip to Markdown.",
+  "renderer": "renderer.js"
+}

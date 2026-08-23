@@ -1,0 +1,6 @@
+{
+  "name": "task-counter",
+  "version": "1.0.0",
+  "description": "- [ ] task progress chip; click jumps to the next open task.",
+  "renderer": "renderer.js"
+}

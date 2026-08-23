@@ -1,0 +1,12 @@
+{
+  "name": "core-themes",
+  "version": "1.0.0",
+  "description": "The five built-in Tenote themes.",
+  "themes": [
+    { "id": "latte", "name": "Latte", "css": "latte.css", "swatch": ["#f3eadb", "#e2d3b8"] },
+    { "id": "pearl", "name": "Pearl", "css": "pearl.css", "swatch": ["#f5f6f8", "#d9dde3"] },
+    { "id": "espresso", "name": "Espresso", "css": "espresso.css", "swatch": ["#2a211b", "#4a3d31"] },
+    { "id": "midnight", "name": "Midnight", "css": "midnight.css", "swatch": ["#1e232c", "#37404f"] },
+    { "id": "pastel", "name": "Pastel", "css": "pastel.css", "swatch": ["#ffe3ec", "#d9dcff"] }
+  ]
+}

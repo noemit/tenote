@@ -1,0 +1,6 @@
+{
+  "name": "export-image",
+  "version": "1.0.0",
+  "description": "⌘⇧E renders the current note as a pretty shareable image — copied to clipboard and saved next to your images.",
+  "renderer": "renderer.js"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "theme-pack-1",
+  "version": "1.0.0",
+  "description": "Two extra themes: Forest and Terminal.",
+  "themes": [
+    { "id": "forest", "name": "Forest", "css": "forest.css", "swatch": ["#1c241c", "#39473a"] },
+    { "id": "terminal", "name": "Terminal", "css": "terminal.css", "swatch": ["#0d0f0d", "#4dd06a"] }
+  ]
+}

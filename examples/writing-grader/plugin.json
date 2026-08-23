@@ -1,0 +1,6 @@
+{
+  "name": "writing-grader",
+  "version": "1.0.0",
+  "description": "Readability grade chip with your worst-offense writing tip on hover.",
+  "renderer": "renderer.js"
+}

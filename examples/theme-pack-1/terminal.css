@@ -1,0 +1,32 @@
+body[data-theme="terminal"] {
+  --bg: #0d0f0d;
+  --surface: #151815;
+  --border: #22301f;
+  --text: #c9e4c5;
+  --muted: #5f7a62;
+  --accent: #4dd06a;
+  --hover: rgba(77, 208, 106, 0.08);
+  --active: rgba(77, 208, 106, 0.14);
+  --app-border: rgba(77, 208, 106, 0.25);
+  --bg-solid: #0d0f0d;
+  --window-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  --icon: #8fbf96;
+  --placeholder: #46583f;
+  --selection: rgba(77, 208, 106, 0.30);
+  --code-bg: rgba(77, 208, 106, 0.12);
+  --scroll: rgba(77, 208, 106, 0.2);
+  --scroll-hover: rgba(77, 208, 106, 0.35);
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  --pop: #151815;
+  --tile: #101410;
+  --danger: #e88a7e;
+}
+
+body[data-theme="terminal"] #note {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+body[data-theme="terminal"] #app {
+  box-shadow: 0 0 0 1px var(--app-border), var(--window-shadow);
+}

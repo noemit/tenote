@@ -1,0 +1,23 @@
+body[data-theme="pastel"] {
+  --bg: linear-gradient(155deg, #ffe9f0 0%, #eef0fe 45%, #e3f1ff 100%);
+  --surface: rgba(255, 255, 255, 0.62);
+  --border: rgba(148, 158, 205, 0.4);
+  --text: #4c4a63;
+  --muted: #a0a0bd;
+  --accent: #8b92dd;
+  --hover: rgba(120, 125, 190, 0.1);
+  --active: rgba(120, 125, 190, 0.16);
+  --app-border: transparent;
+  --bg-solid: #eee8f6;
+  --window-shadow: 0 2px 6px rgba(0, 0, 0, 0.10), 0 14px 36px rgba(0, 0, 0, 0.16);
+  --icon: #6d6d8f;
+  --placeholder: #b9b9d2;
+  --selection: rgba(139, 146, 221, 0.28);
+  --code-bg: rgba(139, 146, 221, 0.12);
+  --scroll: rgba(140, 145, 200, 0.4);
+  --scroll-hover: rgba(140, 145, 200, 0.55);
+  --shadow: 0 8px 28px rgba(140, 130, 180, 0.14);
+  --pop: #ffffff;
+  --tile: #f0eefc;
+  --danger: #b03a2e;
+}

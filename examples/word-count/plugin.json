@@ -1,0 +1,6 @@
+{
+  "name": "word-count",
+  "version": "1.0.0",
+  "description": "Live word count chip with reading time on hover.",
+  "renderer": "renderer.js"
+}

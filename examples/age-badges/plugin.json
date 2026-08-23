@@ -1,0 +1,6 @@
+{
+  "name": "age-badges",
+  "version": "1.0.0",
+  "description": "Dims notes older than N days in the recents strip and all-notes list.",
+  "renderer": "renderer.js"
+}

@@ -1,0 +1,6 @@
+{
+  "name": "word-of-the-day",
+  "version": "1.0.0",
+  "description": "A daily vocabulary word; hover for the definition, click to insert it.",
+  "renderer": "renderer.js"
+}

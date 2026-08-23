@@ -1,0 +1,6 @@
+{
+  "name": "prompt-of-the-day",
+  "version": "1.0.0",
+  "description": "A daily writing prompt; click to insert it into the note.",
+  "renderer": "renderer.js"
+}

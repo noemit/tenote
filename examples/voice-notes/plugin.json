@@ -1,0 +1,7 @@
+{
+  "name": "voice-notes",
+  "version": "1.0.0",
+  "description": "Dictate into a note via a local Parakeet (or any) transcription command. Chip shows ready/recording/transcribing.",
+  "main": "index.js",
+  "renderer": "renderer.js"
+}

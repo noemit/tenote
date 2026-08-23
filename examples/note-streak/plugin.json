@@ -1,0 +1,6 @@
+{
+  "name": "note-streak",
+  "version": "1.0.0",
+  "description": "\ud83d\udd25 chip counting consecutive days with a saved note.",
+  "renderer": "renderer.js"
+}

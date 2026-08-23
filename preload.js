@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld('tenote', {
   setHideRecents: (v) => ipcRenderer.invoke('settings:setHideRecents', v),
   quit: () => ipcRenderer.invoke('app:quit'),
   log: (level, message) => ipcRenderer.send('log', { level, message }),
+  invokePlugin: (plugin, method, args) => ipcRenderer.invoke('plugin:invoke', { plugin, method, args }),
+  onPluginEvent: (cb) => ipcRenderer.on('plugin:event', (e, evt) => cb(evt)),
   onShown: (cb) => ipcRenderer.on('window:shown', () => cb()),
   onGoto: (cb) => ipcRenderer.on('ui:goto', (e, view) => cb(view)),
 });

@@ -1,0 +1,23 @@
+body[data-theme="pearl"] {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --border: #e4e6eb;
+  --text: #23262b;
+  --muted: #8a919c;
+  --accent: #5470c6;
+  --hover: rgba(35, 38, 43, 0.06);
+  --active: rgba(35, 38, 43, 0.11);
+  --app-border: transparent;
+  --bg-solid: #f5f6f8;
+  --window-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 14px 36px rgba(0, 0, 0, 0.18);
+  --icon: #4b5058;
+  --placeholder: #a6abb3;
+  --selection: rgba(84, 112, 198, 0.22);
+  --code-bg: rgba(35, 38, 43, 0.07);
+  --scroll: rgba(80, 90, 105, 0.3);
+  --scroll-hover: rgba(80, 90, 105, 0.45);
+  --shadow: 0 8px 28px rgba(40, 50, 70, 0.10);
+  --pop: #ffffff;
+  --tile: #eef0f3;
+  --danger: #b03a2e;
+}

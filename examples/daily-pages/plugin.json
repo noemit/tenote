@@ -1,0 +1,7 @@
+{
+  "name": "daily-pages",
+  "version": "1.0.0",
+  "description": "`tenotectl today` opens (or creates) today's dated note; also in the tray menu.",
+  "main": "index.js",
+  "renderer": "renderer.js"
+}

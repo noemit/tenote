@@ -1,0 +1,6 @@
+{
+  "name": "search",
+  "version": "1.0.0",
+  "description": "⌘F full-text search across all notes.",
+  "renderer": "renderer.js"
+}
