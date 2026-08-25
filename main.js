@@ -289,8 +289,49 @@ function stopResize() {
   resizeState = null;
 }
 
+let menuGrowFrom = null;
+
+function ensureMenuSize(opts) {
+  if (!win || win.isDestroyed()) return false;
+  const o = opts || {};
+  if (o.restore) {
+    if (!menuGrowFrom) return true;
+    const b = win.getBounds();
+    const w = menuGrowFrom.width;
+    const h = menuGrowFrom.height;
+    const x = b.x + (b.width - w);
+    win.setBounds({ x: Math.round(x), y: b.y, width: w, height: h }, true);
+    menuGrowFrom = null;
+    return true;
+  }
+  const wantW = Math.round(Number(o.width) || 0);
+  const wantH = Math.round(Number(o.height) || 0);
+  if (wantW < 1 && wantH < 1) return false;
+  const b = win.getBounds();
+  const w = Math.max(b.width, wantW);
+  const h = Math.max(b.height, wantH);
+  if (w === b.width && h === b.height) return true;
+  const wa = screen.getDisplayMatching(b).workArea;
+  if (!menuGrowFrom) menuGrowFrom = { x: b.x, y: b.y, width: b.width, height: b.height };
+  const dw = w - b.width;
+  let x = b.x - dw;
+  let nw = w;
+  let nh = h;
+  if (x < wa.x) { nw -= (wa.x - x); x = wa.x; }
+  if (b.y + nh > wa.y + wa.height) nh = Math.max(b.height, wa.y + wa.height - b.y);
+  if (x + nw > wa.x + wa.width) nw = wa.x + wa.width - x;
+  if (nw < MIN_WINDOW_WIDTH) {
+    nw = MIN_WINDOW_WIDTH;
+    if (x + nw > wa.x + wa.width) x = wa.x + wa.width - nw;
+  }
+  if (nh < MIN_WINDOW_HEIGHT) nh = MIN_WINDOW_HEIGHT;
+  win.setBounds({ x: Math.round(x), y: b.y, width: Math.round(nw), height: Math.round(nh) }, true);
+  return true;
+}
+
 function startResize(edge) {
   if (!win || !RESIZE_EDGES.has(String(edge || ''))) return;
+  menuGrowFrom = null;
   stopResize();
   resizeState = { edge: String(edge), start: screen.getCursorScreenPoint(), bounds: { ...win.getBounds() } };
   resizeTick = setInterval(() => {
@@ -343,6 +384,7 @@ function showWindow() {
 
 function hideWindow() {
   stopResize();
+  menuGrowFrom = null;
   if (win) win.hide();
   firePluginEvent('window:hidden', {});
 }
@@ -684,6 +726,7 @@ function setupIpc() {
   ipcMain.handle('window:hide', () => { hideWindow(); return true; });
   ipcMain.handle('window:resizeStart', (e, edge) => { startResize(edge); return true; });
   ipcMain.handle('window:resizeEnd', () => { stopResize(); return true; });
+  ipcMain.handle('window:ensureSize', (e, opts) => ensureMenuSize(opts));
   ipcMain.handle('state:get', () => ({
     notesDir: NOTES_DIR,
     shortcut: shortcutLabel(),

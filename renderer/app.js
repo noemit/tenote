@@ -276,6 +276,33 @@
     brandEl.classList.toggle('hidden', !!hide);
   }
 
+  function fitPops() {
+    requestAnimationFrame(() => {
+      const card = $('#app');
+      if (!card) return;
+      const box = card.getBoundingClientRect();
+      let extraW = 0;
+      let extraH = 0;
+      const pad = 10;
+      for (const el of [settingsPop, pluginsPop, tipsPop]) {
+        if (!el || el.classList.contains('hidden')) continue;
+        const r = el.getBoundingClientRect();
+        extraW = Math.max(extraW, box.left - r.left + pad, r.right - box.right + pad);
+        extraH = Math.max(extraH, r.bottom - box.bottom + pad);
+      }
+      if (extraW > 1 || extraH > 1) {
+        jot.ensureSize({
+          width: Math.ceil(window.innerWidth + extraW),
+          height: Math.ceil(window.innerHeight + extraH),
+        });
+      }
+    });
+  }
+
+  function restoreSize() {
+    if (!settingsOpen && !tipsOpen && !pluginsOpen) jot.ensureSize({ restore: true });
+  }
+
   async function openSettings() {
     try {
       const s = await jot.getSettings();
@@ -287,12 +314,15 @@
       applyHideBrand(s.hideBrand);
       settingsOpen = true;
       settingsPop.classList.remove('hidden');
+      fitPops();
     } catch (err) { console.error('settings failed', err); }
   }
 
   function closeSettings() {
     settingsOpen = false;
     settingsPop.classList.add('hidden');
+    if (pluginsOpen) closePlugins();
+    restoreSize();
   }
 
   function toggleSettings() {
@@ -305,11 +335,13 @@
     closePlugins();
     tipsOpen = true;
     tipsPop.classList.remove('hidden');
+    fitPops();
   }
 
   function closeTips() {
     tipsOpen = false;
     tipsPop.classList.add('hidden');
+    restoreSize();
   }
 
   function toggleTips() {
@@ -318,15 +350,17 @@
   }
 
   function openPlugins() {
-    closeSettings();
     closeTips();
+    if (!settingsOpen) openSettings();
     pluginsOpen = true;
     pluginsPop.classList.remove('hidden');
+    fitPops();
   }
 
   function closePlugins() {
     pluginsOpen = false;
     pluginsPop.classList.add('hidden');
+    restoreSize();
   }
 
   function togglePlugins() {
@@ -585,9 +619,9 @@
       e.preventDefault();
       if (welcomeVisible()) dismissWelcome();
       else if (window.__tenoteEscape && window.__tenoteEscape()) return;
+      else if (pluginsOpen) closePlugins();
       else if (settingsOpen) closeSettings();
       else if (tipsOpen) closeTips();
-      else if (pluginsOpen) closePlugins();
       else if (panelOpen) closePanel();
       else { flushSave(); jot.hide(); }
     } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -632,6 +666,7 @@
   $('#btn-settings').addEventListener('click', () => toggleSettings());
   $('#set-tips').addEventListener('click', () => toggleTips());
   $('#set-plugins-btn').addEventListener('click', () => togglePlugins());
+  $('#btn-plugins-close').addEventListener('click', () => closePlugins());
 
   $('#btn-panel-close').addEventListener('click', () => closePanel());
   $('#btn-panel-files').addEventListener('click', () => jot.openNotesFolder());
@@ -656,14 +691,12 @@
 
   // Clicking outside the settings/tips/plugins popovers closes them (the toggles manage themselves).
   document.addEventListener('click', (e) => {
-    if (settingsOpen && !settingsPop.contains(e.target) && !e.target.closest('#btn-settings')) {
-      closeSettings();
-    }
+    const onSettings = settingsPop.contains(e.target) || e.target.closest('#btn-settings');
+    const onPlugins = pluginsPop.contains(e.target) || e.target.closest('#set-plugins-btn');
+    if (pluginsOpen && !onPlugins && !onSettings) closePlugins();
+    if (settingsOpen && !onSettings && !onPlugins) closeSettings();
     if (tipsOpen && !tipsPop.contains(e.target) && !e.target.closest('#set-tips')) {
       closeTips();
-    }
-    if (pluginsOpen && !pluginsPop.contains(e.target) && !e.target.closest('#set-plugins-btn')) {
-      closePlugins();
     }
   });
 

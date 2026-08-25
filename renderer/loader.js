@@ -102,7 +102,7 @@
   }
 
   // ---- chips ----------------------------------------------------------------
-  function chipsEl() { return $('#chips'); }
+  function chipsEl() { return $('#plugin-chips'); }
 
   function updateArrows() {
     const strip = chipsEl();

@@ -18,7 +18,7 @@
       <span id="status"></span>
       <div id="chips-strip">
         <button id="chips-prev" class="chip-arrow hidden" tabindex="-1">‹</button>
-        <div id="chips"></div>
+        <div id="plugin-chips"></div>
         <button id="chips-next" class="chip-arrow hidden" tabindex="-1">›</button>
       </div>
       <button id="btn-notes-count" class="notes-count hidden" title="All notes"></button>
@@ -70,7 +70,12 @@
         <button id="set-quit" class="set-btn set-danger">Quit Tenote</button>
       </div>
       <div id="plugins-pop" class="settings-pop plugins-pop hidden">
-        <div class="set-label">Plugins</div>
+        <header class="pop-head">
+          <div class="set-label">Plugins</div>
+          <button id="btn-plugins-close" class="icon-btn icon-btn-sm" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </header>
         <div id="set-plugins" class="plugins-list"></div>
       </div>
       <div id="tips-pop" class="settings-pop tips-pop hidden">

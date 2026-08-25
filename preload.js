@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('tenote', {
   hide: () => ipcRenderer.invoke('window:hide'),
   resizeStart: (edge) => ipcRenderer.invoke('window:resizeStart', edge),
   resizeEnd: () => ipcRenderer.invoke('window:resizeEnd'),
+  ensureSize: (opts) => ipcRenderer.invoke('window:ensureSize', opts),
   saveNote: (payload) => ipcRenderer.invoke('note:save', payload),
   listNotes: () => ipcRenderer.invoke('note:list'),
   readNote: (id) => ipcRenderer.invoke('note:read', id),

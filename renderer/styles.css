@@ -291,9 +291,24 @@ body {
 /* ---- tips card ---- */
 .tips-pop { width: 250px; }
 
-/* ---- plugins card ---- */
-.plugins-pop { width: 250px; }
-.plugins-pop .plugins-list { max-height: 300px; overflow-y: auto; }
+/* ---- plugins card (flies out left of the settings menu) ---- */
+.plugins-pop {
+  right: 284px;
+  width: 300px;
+  overflow-x: hidden;
+  z-index: 21;
+}
+.plugins-pop .plugins-list { max-height: 300px; overflow-x: hidden; overflow-y: auto; }
+.plugins-pop .plug-actions { flex-direction: column; margin: 6px 2px 2px; }
+.pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 2px;
+}
+.pop-head .set-label { padding-bottom: 4px; }
+.pop-head .icon-btn { margin: 0; }
 .tips-list {
   list-style: none;
   padding: 0 4px 4px;
@@ -414,15 +429,16 @@ body {
 }
 
 /* ---- plugin chips (topbar) ----------------------------------------------- */
-#chips-strip { display: flex; align-items: center; gap: 2px; min-width: 0; max-width: 46%; }
-#chips {
+#chips-strip { display: none; align-items: center; gap: 2px; min-width: 0; max-width: 46%; }
+#chips-strip.has-chips { display: flex; }
+#plugin-chips {
   display: flex;
   gap: 5px;
   overflow-x: auto;
   scrollbar-width: none;
   scroll-behavior: smooth;
 }
-#chips::-webkit-scrollbar { display: none; }
+#plugin-chips::-webkit-scrollbar { display: none; }
 .chip-arrow {
   border: 0;
   background: transparent;
