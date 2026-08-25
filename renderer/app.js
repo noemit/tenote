@@ -18,6 +18,7 @@
   const noteListEl = $('#note-list');
   const settingsPop = $('#settings-pop');
   const tipsPop = $('#tips-pop');
+  const pluginsPop = $('#plugins-pop');
   const welcomeEl = $('#welcome');
   const setHideBlur = $('#set-hide-blur');
   const setLaunch = $('#set-launch');
@@ -34,6 +35,7 @@
   let panelOpen = false;
   let settingsOpen = false;
   let tipsOpen = false;
+  let pluginsOpen = false;
   let gen = 0; // bumped on every composer reset — stale async saves can't touch state
   let hideRecents = false; // settings: collapse the recents strip to a count button
 
@@ -295,11 +297,12 @@
 
   function toggleSettings() {
     if (settingsOpen) closeSettings();
-    else { closeTips(); openSettings(); }
+    else { closeTips(); closePlugins(); openSettings(); }
   }
 
   function openTips() {
     closeSettings();
+    closePlugins();
     tipsOpen = true;
     tipsPop.classList.remove('hidden');
   }
@@ -312,6 +315,23 @@
   function toggleTips() {
     if (tipsOpen) closeTips();
     else openTips();
+  }
+
+  function openPlugins() {
+    closeSettings();
+    closeTips();
+    pluginsOpen = true;
+    pluginsPop.classList.remove('hidden');
+  }
+
+  function closePlugins() {
+    pluginsOpen = false;
+    pluginsPop.classList.add('hidden');
+  }
+
+  function togglePlugins() {
+    if (pluginsOpen) closePlugins();
+    else openPlugins();
   }
 
   // ---- notes view (takeover) ----------------------------------------------
@@ -546,7 +566,7 @@
   window.__tenoteUiHooks = {
     flushSave,
     openNote,
-    beforeView() { closeSettings(); closeTips(); if (panelOpen) closePanel(); },
+    beforeView() { closeSettings(); closeTips(); closePlugins(); if (panelOpen) closePanel(); },
   };
 
   ta.addEventListener('keydown', (e) => {
@@ -567,6 +587,7 @@
       else if (window.__tenoteEscape && window.__tenoteEscape()) return;
       else if (settingsOpen) closeSettings();
       else if (tipsOpen) closeTips();
+      else if (pluginsOpen) closePlugins();
       else if (panelOpen) closePanel();
       else { flushSave(); jot.hide(); }
     } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -610,6 +631,7 @@
   });
   $('#btn-settings').addEventListener('click', () => toggleSettings());
   $('#set-tips').addEventListener('click', () => toggleTips());
+  $('#set-plugins-btn').addEventListener('click', () => togglePlugins());
 
   $('#btn-panel-close').addEventListener('click', () => closePanel());
   $('#btn-panel-files').addEventListener('click', () => jot.openNotesFolder());
@@ -632,13 +654,16 @@
     if (item) openNote(item.dataset.id);
   });
 
-  // Clicking outside the settings/tips popovers closes them (the toggles manage themselves).
+  // Clicking outside the settings/tips/plugins popovers closes them (the toggles manage themselves).
   document.addEventListener('click', (e) => {
     if (settingsOpen && !settingsPop.contains(e.target) && !e.target.closest('#btn-settings')) {
       closeSettings();
     }
     if (tipsOpen && !tipsPop.contains(e.target) && !e.target.closest('#set-tips')) {
       closeTips();
+    }
+    if (pluginsOpen && !pluginsPop.contains(e.target) && !e.target.closest('#set-plugins-btn')) {
+      closePlugins();
     }
   });
 

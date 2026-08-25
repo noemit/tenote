@@ -178,6 +178,7 @@ function bootstrap() {
   applyDockIcon();
   try { ensureTrayIcon(); } catch (e) { logger.warn('icons', 'icon generation failed', { error: e.message }); }
 
+  seedExamplePlugins();
   host.discover();
   host.activateAll();
 
@@ -350,6 +351,37 @@ function firePluginEvent(event, payload) {
   try { host.emit(event, payload); } catch (e) { logger.error('plugins', `emit ${event}`, { error: e.message }); }
 }
 
+// Ship the bundled examples into the user plugins dir (disabled) once, so the
+// Plugins menu shows everything there is to try.
+function seedExamplePlugins() {
+  if (settings.plugins.examplesSeeded) return;
+  const src = path.join(__dirname, 'examples');
+  let entries;
+  try { entries = fs.readdirSync(src, { withFileTypes: true }); } catch (e) { entries = []; }
+  const disabled = new Set(settings.plugins.disabled);
+  let copied = 0;
+  for (const ent of entries) {
+    if (!ent.isDirectory() || ent.name.startsWith('.') || ent.name.startsWith('_')) continue;
+    const from = path.join(src, ent.name);
+    const to = path.join(PLUGINS_USER_DIR, ent.name);
+    let name = ent.name;
+    try {
+      const m = JSON.parse(fs.readFileSync(path.join(from, 'plugin.json'), 'utf8'));
+      if (m && typeof m.name === 'string' && PLUGIN_NAME_RE.test(m.name)) name = m.name;
+    } catch (e) { /* no manifest — dir name wins */ }
+    try {
+      if (!fs.existsSync(to)) { fs.cpSync(from, to, { recursive: true }); copied++; }
+      disabled.add(name);
+    } catch (e) {
+      logger.warn('plugins', `seed failed for example "${ent.name}"`, { error: e.message });
+    }
+  }
+  settings.plugins.disabled = [...disabled].sort();
+  settings.plugins.examplesSeeded = true;
+  saveSettings();
+  logger.info('plugins', `seeded ${copied} example plugins (disabled)`);
+}
+
 function toggleWindow() {
   const now = Date.now();
   if (now - lastToggleAt < TOGGLE_COALESCE_MS) {
@@ -363,19 +395,29 @@ function toggleWindow() {
 }
 
 // ---- shortcuts (registered by plugins via the host) ------------------------
-function registerPluginShortcut({ accelerator, fn }) {
+const pluginShortcuts = new Map(); // owner -> accelerator
+
+function registerPluginShortcut({ accelerator, fn, owner }) {
   try {
     if (!globalShortcut.register(accelerator, () => {
       const r = hostSafeCall('shortcut', accelerator, fn);
       void r;
     })) return false;
     activeShortcut = accelerator;
+    if (owner) pluginShortcuts.set(owner, accelerator);
     logger.info('shortcut', 'registered', { shortcut: accelerator });
     return true;
   } catch (e) {
     logger.warn('shortcut', 'register threw', { shortcut: accelerator, error: e.message });
     return false;
   }
+}
+
+function unregisterPluginShortcuts(owner) {
+  const acc = pluginShortcuts.get(owner);
+  if (!acc) return;
+  try { globalShortcut.unregister(acc); } catch (e) { /* ignore */ }
+  pluginShortcuts.delete(owner);
 }
 
 function hostSafeCall(label, owner, fn) {
@@ -719,11 +761,21 @@ function handleHostService(method, args) {
       if (!host.hasTheme(String(a.id))) throw new Error('unknown theme');
       return host.themeCss(String(a.id));
     }
-    case 'setEnabled':
-      host.setEnabled(String(a.name), !!a.enabled);
-      logger.info('plugins', `setEnabled ${a.name} -> ${!!a.enabled}`);
+    case 'setEnabled': {
+      const name = String(a.name);
+      const turningOn = !!a.enabled;
+      if (!turningOn) unregisterPluginShortcuts(name);
+      const ok = turningOn ? host.enable(name) : host.disable(name);
+      logger.info('plugins', `setEnabled ${name} -> ${turningOn} (${ok ? 'live' : 'failed'})`);
+      const rec = host.getRecord(name);
+      if (turningOn && ok && rec && rec.rendererPath) {
+        injectRendererEntry({ id: name, path: rec.rendererPath });
+      } else if (!turningOn) {
+        try { if (win && !win.isDestroyed()) win.webContents.send('plugin:event', { event: '__tenote:deactivate', payload: { id: name } }); } catch (e) { /* ignore */ }
+      }
       rebuildTrayMenu();
-      return { ok: true, relaunchNeeded: true };
+      return { ok, active: !!(rec && rec.state === 'ok') };
+    }
     case 'openPluginsFolder': {
       try { fs.mkdirSync(PLUGINS_USER_DIR, { recursive: true }); } catch (e) { /* ignore */ }
       shell.openPath(PLUGINS_USER_DIR);
@@ -1050,28 +1102,30 @@ function localJsonRequires(src, pluginDir) {
   return map;
 }
 
+function injectRendererEntry(entry) {
+  return (async () => {
+    try {
+      const src = fs.readFileSync(entry.path, 'utf8');
+      const jsonMap = localJsonRequires(src, path.dirname(entry.path));
+      const requireShim = `var require=function(p){p=String(p).replace(/^\\.\\//,'');`
+        + `var m=${JSON.stringify(jsonMap)};`
+        + `if(!Object.prototype.hasOwnProperty.call(m,p))throw new Error('cannot require '+p);return m[p];};`;
+      const wrapped = `(function(){var module={exports:{}};var exports=module.exports;${requireShim}(function(){\n${src}\n})();`
+        + `var e=module.exports;if(typeof e!=="function"&&e&&typeof e.activate==="function")e=e.activate;`
+        + `if(typeof e!=="function")throw new Error("renderer export must be a function");`
+        + `window.__tenoteReady(${JSON.stringify(entry.id)},e);})()`;
+      await win.webContents.executeJavaScript(wrapped, true);
+      logger.info('plugins', `renderer part activated: ${entry.id}`);
+    } catch (e) {
+      logger.error('plugins', `renderer injection failed: ${entry.id}`, { error: e && e.message || e });
+    }
+  })();
+}
+
 function injectRendererPlugins() {
   const entries = host.rendererEntries();
   if (!entries.length) return;
-  (async () => {
-    for (const entry of entries) {
-      try {
-        const src = fs.readFileSync(entry.path, 'utf8');
-        const jsonMap = localJsonRequires(src, path.dirname(entry.path));
-        const requireShim = `var require=function(p){p=String(p).replace(/^\\.\\//,'');`
-          + `var m=${JSON.stringify(jsonMap)};`
-          + `if(!Object.prototype.hasOwnProperty.call(m,p))throw new Error('cannot require '+p);return m[p];};`;
-        const wrapped = `(function(){var module={exports:{}};var exports=module.exports;${requireShim}(function(){\n${src}\n})();`
-          + `var e=module.exports;if(typeof e!=="function"&&e&&typeof e.activate==="function")e=e.activate;`
-          + `if(typeof e!=="function")throw new Error("renderer export must be a function");`
-          + `window.__tenoteReady(${JSON.stringify(entry.id)},e);})()`;
-        await win.webContents.executeJavaScript(wrapped, true);
-        logger.info('plugins', `renderer part activated: ${entry.id}`);
-      } catch (e) {
-        logger.error('plugins', `renderer injection failed: ${entry.id}`, { error: e && e.message || e });
-      }
-    }
-  })();
+  for (const entry of entries) injectRendererEntry(entry);
 }
 
 function quitApp() { isQuitting = true; app.quit(); }

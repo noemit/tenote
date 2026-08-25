@@ -13,11 +13,17 @@ that author's code on your machine. Read it or trust it.
 
 **The easy way:** ⚙ → Plugins → **Install from file…** — pick the plugin you
 downloaded (a `.zip`, a `.js`, or a folder, e.g. straight from your Downloads
-folder). Tenote unpacks it, puts it in the right place, and asks for a restart.
+folder). Tenote unpacks it and puts it in the right place; it activates the
+next time you launch Tenote.
 
 Also in that section: **Open plugins folder** if you prefer moving files
-yourself. Either way, restart Tenote and the plugin appears in ⚙ → Plugins with
-an enable/disable toggle; changes apply at relaunch.
+yourself. Every installed plugin appears in ⚙ → Plugins with an enable/disable
+toggle that takes effect immediately (a freshly *installed* plugin is the one
+exception — it activates at next launch).
+
+Tenote ships with a set of example plugins (word count, daily pages, a focus
+timer, themes, and more). They're pre-installed but toggled off — open ⚙ →
+Plugins and flip any of them on to try them.
 
 For development you can skip installing: launch with
 `TENOTE_PLUGINS=/path/to/plugin:/path/to/other` (colon-separated).

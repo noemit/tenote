@@ -233,6 +233,71 @@ test('file allowlist includes sibling json next to a renderer', () => {
   assert.ok(entry.files.has('words.json'));
 });
 
+test('enable() activates a disabled plugin live and fires only its ready hook', () => {
+  const dir = tmp();
+  writePlugin(dir, 'early', "t.on('ready', () => t.settings.set('readyN', (t.settings.get('readyN', 0)) + 1));");
+  writePlugin(dir, 'late', `
+    t.registerCommand('late-cmd', () => 'late');
+    t.on('ready', () => t.settings.set('sawReady', true));
+  `);
+  const opts = baseOpts(dir);
+  opts.settings.plugins.disabled = ['late'];
+  const host = createHost(opts);
+  host.discover();
+  host.activateAll();
+  assert.equal(host.runCommand('late-cmd'), null);
+  assert.equal(opts.settings.plugins.values.early.readyN, 1);
+  assert.equal(host.enable('late'), true);
+  assert.equal(host.runCommand('late-cmd'), 'late');
+  assert.equal(opts.settings.plugins.values.late.sawReady, true);
+  assert.equal(opts.settings.plugins.values.early.readyN, 1);
+  assert.deepEqual(opts.settings.plugins.disabled, []);
+});
+
+test('disable() tears down commands, services, hooks and themes live', () => {
+  const dir = tmp();
+  writePlugin(dir, 'pack', `
+    t.registerCommand('pack-cmd', () => 'x');
+    t.registerService({ ping: () => 'pong' });
+    t.on('note:saved', () => t.settings.set('saves', (t.settings.get('saves', 0)) + 1));
+  `, {
+    name: 'pack',
+    themes: [{ id: 'pack-theme', name: 'Pack', css: 'pack.css', swatch: ['#111', '#222'] }],
+  });
+  fs.writeFileSync(path.join(dir, 'pack', 'pack.css'), 'body{}');
+  const opts = baseOpts(dir);
+  const host = createHost(opts);
+  host.discover();
+  host.activateAll();
+  assert.ok(host.hasTheme('pack-theme'));
+  host.emit('note:saved', {});
+  assert.equal(opts.settings.plugins.values.pack.saves, 1);
+  assert.equal(host.disable('pack'), true);
+  assert.equal(host.runCommand('pack-cmd'), null);
+  assert.ok(!host.hasTheme('pack-theme'));
+  assert.rejects(() => host.invoke('pack', 'ping'));
+  host.emit('note:saved', {});
+  assert.equal(opts.settings.plugins.values.pack.saves, 1);
+  assert.deepEqual(opts.settings.plugins.disabled, ['pack']);
+});
+
+test('enable() restores a disabled plugin theme to the registry', () => {
+  const dir = tmp();
+  writePlugin(dir, 'pack', '', {
+    name: 'pack',
+    themes: [{ id: 'pack-theme', name: 'Pack', css: 'pack.css' }],
+  });
+  fs.writeFileSync(path.join(dir, 'pack', 'pack.css'), 'body{}');
+  const opts = baseOpts(dir);
+  opts.settings.plugins.disabled = ['pack'];
+  const host = createHost(opts);
+  host.discover();
+  host.activateAll();
+  assert.ok(!host.hasTheme('pack-theme'));
+  assert.equal(host.enable('pack'), true);
+  assert.ok(host.hasTheme('pack-theme'));
+});
+
 test('plugins can define and exchange custom event names', () => {
   const dir = tmp();
   writePlugin(dir, 'source', "t.on('ready', () => t.emit('daily:open', { id: 'x' }));");

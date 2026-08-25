@@ -290,6 +290,10 @@ body {
 
 /* ---- tips card ---- */
 .tips-pop { width: 250px; }
+
+/* ---- plugins card ---- */
+.plugins-pop { width: 250px; }
+.plugins-pop .plugins-list { max-height: 300px; overflow-y: auto; }
 .tips-list {
   list-style: none;
   padding: 0 4px 4px;

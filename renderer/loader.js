@@ -64,7 +64,7 @@
   }
 
   function syncSheets() {
-    document.adoptedStyleSheets = [state.themeSheet, ...state.styleSheets].filter(Boolean);
+    document.adoptedStyleSheets = [state.themeSheet, ...state.styleSheets.map((s) => s.sheet)].filter(Boolean);
   }
 
   function renderThemeRow() {
@@ -82,6 +82,12 @@
     }
   }
 
+  function markThemeActive() {
+    const row = $('#theme-row');
+    if (!row) return;
+    row.querySelectorAll('.theme-swatch').forEach((sw) => sw.classList.toggle('active', sw.dataset.theme === state.themeId));
+  }
+
   function wireThemeRow() {
     const row = $('#theme-row');
     if (!row) return;
@@ -89,7 +95,7 @@
       const sw = e.target.closest('.theme-swatch');
       if (!sw || sw.dataset.theme === state.themeId) return;
       state.themeId = sw.dataset.theme;
-      renderThemeRow();
+      markThemeActive();
       applyThemeSheet(state.themeId);
       jot.setTheme(state.themeId);
     });
@@ -107,7 +113,7 @@
     $('#chips-strip').classList.toggle('has-chips', state.chips.length > 0);
   }
 
-  function makeChip(desc) {
+  function makeChip(desc, owner) {
     const id = 'chip-' + (++state.chipSeq);
     const el = document.createElement('button');
     el.type = 'button';
@@ -131,10 +137,11 @@
       hide() { el.classList.add('gone'); hidePopIf(el); requestAnimationFrame(updateArrows); },
       remove() {
         el.remove();
-        state.chips = state.chips.filter((c) => c.id !== id);
+        state.chips = state.chips.filter((c) => c._id !== id);
         updateArrows();
       },
       _id: id,
+      _owner: owner,
     };
   }
 
@@ -237,7 +244,7 @@
   };
 
   function dispatchEvent_(name, payload) {
-    for (const fn of state.listeners[name] || []) safe(fn, `event ${name}`, payload);
+    for (const sub of state.listeners[name] || []) safe(sub.fn, `event ${name}`, payload);
   }
 
   // ---- plugin settings UI ---------------------------------------------------
@@ -276,9 +283,17 @@
     box.addEventListener('change', async (e) => {
       const cb = e.target.closest('input[data-plug]');
       if (!cb) return;
-      const r = await hostCall('setEnabled', { name: cb.dataset.plug, enabled: cb.checked });
-      if (r) setStatus('Relaunch Tenote to apply plugins');
-      renderPluginsSection();
+      const name = cb.dataset.plug;
+      const r = await hostCall('setEnabled', { name, enabled: cb.checked });
+      if (!r) { setStatus('Toggle failed', 3000); return; }
+      setStatus(r.active ? `"${name}" is on` : (cb.checked ? `"${name}" failed to activate` : `"${name}" is off`), 3000);
+      const st = await hostCall('state');
+      if (st) {
+        state.plugins = st.plugins || [];
+        state.themes = st.themes || [];
+        renderThemeRow();
+        renderPluginsSection();
+      }
     });
     box.addEventListener('click', async (e) => {
       if (e.target.closest('[data-install-plugin]')) {
@@ -395,6 +410,25 @@
   };
   $('#btn-pview-close').addEventListener('click', closeView);
 
+  // ---- plugin teardown ------------------------------------------------------
+  function deactivate(id) {
+    for (const chip of [...state.chips]) if (chip._owner === id) chip.remove();
+    for (const name of Object.keys(state.listeners)) {
+      state.listeners[name] = state.listeners[name].filter((s) => s.owner !== id);
+    }
+    state.keys = state.keys.filter((k) => k.owner !== id);
+    state.mdRules = state.mdRules.filter((r) => r.owner !== id);
+    state.styleSheets = state.styleSheets.filter((s) => s.owner !== id);
+    syncSheets();
+    for (const vid of Object.keys(state.views)) {
+      if (state.views[vid].owner !== id) continue;
+      if (state.activeView === vid) closeView();
+      delete state.views[vid];
+    }
+    if (state.schemas[id]) delete state.schemas[id];
+    renderPluginsSection();
+  }
+
   // ---- plugin activation ----------------------------------------------------
   function makeApi(id, version) {
     const prefix = `[${id}]`;
@@ -415,13 +449,13 @@
         chips: {
           add(desc) {
             const d = desc || {};
-            const chip = makeChip(d);
+            const chip = makeChip(d, id);
             state.chips.push(chip);
             return chip;
           },
         },
         views: {
-          register(def) { if (def && def.id) state.views[def.id] = def; },
+          register(def) { if (def && def.id) state.views[def.id] = { ...def, owner: id }; },
           open: (id) => openView(id),
           close: () => closeView(),
           openNote: (id) => window.__tenoteViews.openNote(id),
@@ -431,30 +465,30 @@
           apply(themeId) {
             if (!state.themes.some((t) => t.id === themeId)) return false;
             state.themeId = themeId;
-            renderThemeRow();
+            markThemeActive();
             applyThemeSheet(themeId);
             jot.setTheme(themeId);
             return true;
           },
         },
-        markdown: { addRule(rule) { if (rule && rule.name) state.mdRules.push(rule); } },
+        markdown: { addRule(rule) { if (rule && rule.name) state.mdRules.push({ ...rule, owner: id }); } },
         styles: {
           add(css) {
             if (typeof css !== 'string' || typeof CSSStyleSheet === 'undefined') return;
             const sheet = new CSSStyleSheet();
             sheet.replaceSync(css);
-            state.styleSheets.push(sheet);
+            state.styleSheets.push({ sheet, owner: id });
             syncSheets();
           },
         },
-        keys: { add(binding) { if (binding && binding.combo && typeof binding.handler === 'function') state.keys.push(binding); } },
+        keys: { add(binding) { if (binding && binding.combo && typeof binding.handler === 'function') state.keys.push({ ...binding, owner: id }); } },
         settings: { declare(fields) { if (Array.isArray(fields)) { state.schemas[id] = fields; renderPluginsSection(); } } },
       },
       events: {
         on(name, fn) {
           if (!name || typeof fn !== 'function') return;
           if (!state.listeners[name]) state.listeners[name] = [];
-          state.listeners[name].push(fn);
+          state.listeners[name].push({ fn, owner: id });
         },
       },
       composer: {
@@ -505,7 +539,10 @@
 
   // ---- events from main -----------------------------------------------------
   if (jot.onPluginEvent) {
-    jot.onPluginEvent(({ event, payload }) => dispatchEvent_(event, payload));
+    jot.onPluginEvent(({ event, payload }) => {
+      if (event === '__tenote:deactivate' && payload && payload.id) { deactivate(payload.id); return; }
+      dispatchEvent_(event, payload);
+    });
   }
 
   // ---- init -----------------------------------------------------------------

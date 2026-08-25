@@ -155,7 +155,7 @@ Plugins run with full privileges: Node/Electron in main, the page in the rendere
 | `core-commands` | the socket switch (`toggle/show/hide/quit/status`) | socket server plumbing stays kernel |
 | `core-shortcuts` | `registerShortcuts()` incl. env override + fallback + coalescing | — |
 
-Explicitly deferred, with reasons: **storage-md/images** (irreplaceable data, zero demand, plan-sanctioned stop point), **tray/settings-field full conversion** (same-menu entanglement; plugin tray items append-only for now), **hot reload** (enable/disable applies at relaunch; `tenotectl plugins` lists states), **package-manager distribution**.
+Explicitly deferred, with reasons: **storage-md/images** (irreplaceable data, zero demand, plan-sanctioned stop point), **tray/settings-field full conversion** (same-menu entanglement; plugin tray items append-only for now), **package-manager distribution**. ~~hot reload~~ — shipped: enable/disable applies live (main-side registrations are torn down; renderer chips/keys/views/rules/styles are removed per-owner; plugin-started timers keep running until relaunch — best-effort by design).
 
 ## Phases
 
