@@ -31,9 +31,22 @@ function rotateIfNeeded() {
   } catch (e) { /* no file yet */ }
 }
 
+// Rotation for long-lived sessions: track bytes written in-process (statSync
+// lags behind the stream buffer), rotate when we cross the cap, and let the
+// next write reopen a fresh file.
+let approxSize = 0;
+function maybeRotate(lineBytes) {
+  approxSize += lineBytes;
+  if (approxSize <= MAX_SIZE) return;
+  approxSize = 0; // reset even if rotation fails so we retry at the next crossing
+  try { fs.renameSync(LOG_FILE, LOG_FILE + '.1'); } catch (e) { /* nothing flushed to disk yet */ }
+  try { if (stream) { stream.end(); stream = null; } } catch (e) { /* ignore */ }
+}
+
 function ensureStream() {
   if (!stream) {
     init();
+    try { approxSize = fs.statSync(LOG_FILE).size; } catch (e) { approxSize = 0; }
     stream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
     stream.on('error', () => { stream = null; });
   }
@@ -46,7 +59,7 @@ function log(level, tag, msg, data) {
     try { extra = ' ' + JSON.stringify(data); } catch (e) { extra = ' [unserializable]'; }
   }
   const line = `${new Date().toISOString()} [${String(level).toUpperCase()}] [${tag}] ${msg}${extra}`;
-  try { ensureStream(); stream.write(line + '\n'); } catch (e) { /* last resort */ }
+  try { ensureStream(); stream.write(line + '\n'); maybeRotate(Buffer.byteLength(line) + 1); } catch (e) { /* last resort */ }
   if (level === 'error') console.error(`[${tag}] ${msg}`, data !== undefined ? data : '');
   else if (level === 'warn') console.warn(`[${tag}] ${msg}`, data !== undefined ? data : '');
 }

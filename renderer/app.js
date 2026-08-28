@@ -428,12 +428,13 @@
     const g = gen; // snapshot: only apply results if the composer wasn't reset
     if (!state.id && !text.trim()) return; // no note on disk yet and nothing to save
     // (an emptied existing note falls through — the main process deletes the file)
+    if (text.length > 4 * 1024 * 1024) { showStatus('Note is too large (max 4 MB) — split it up', 4000); return; }
     if (!force && text === state.lastText) return;
     state.lastText = text;
     saveChain = saveChain.then(async () => {
       try {
         const res = await jot.saveNote({ id, text, tags: extractTags(text) });
-        if (!res || !res.ok) { console.error('save failed', res); showStatus('Save failed'); return; }
+        if (!res || !res.ok) { console.error('save failed', res); showStatus((res && res.error) || 'Save failed', 3500); return; }
         if (res.deleted) {
           console.log('note deleted (emptied):', res.id);
           if (g === gen) resetComposer();

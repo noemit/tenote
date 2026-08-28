@@ -32,6 +32,7 @@ const MIN_WINDOW_WIDTH = 320 + SHADOW_PAD * 2;
 const MIN_WINDOW_HEIGHT = 220 + SHADOW_PAD * 2;
 const BLUR_HIDE_DELAY = 160;          // ms after losing focus before hiding
 const TOGGLE_COALESCE_MS = 250;       // swallow double-fire (skhd + built-in shortcut)
+const MAX_NOTE_CHARS = 4 * 1024 * 1024; // absurd for a note; guards IPC + disk + parse loops
 
 // Built-in global shortcut is registered by the core-shortcuts builtin plugin.
 // Set TENOTE_SHORTCUT=0 to disable (use skhd instead), or TENOTE_SHORTCUT='Ctrl+Shift+Space' etc.
@@ -97,7 +98,7 @@ const host = require('./lib/host').createHost({
 function defaultSettings() {
   return {
     hideOnBlur: false, launchAtLogin: false, hideBrand: false, hideRecents: false,
-    showDockIcon: false, firstRunDone: false, theme: 'latte',
+    showDockIcon: false, firstRunDone: false, theme: 'latte', lastImageSweep: 0,
     plugins: { disabled: [], paths: [], values: {} },
   };
 }
@@ -197,6 +198,7 @@ function bootstrap() {
     logger.info('app', 'first run — showing window to greet');
     setTimeout(showWindow, 300);
   }
+  maybeSweepImages();
 }
 
 // ---- window ----------------------------------------------------------------
@@ -389,7 +391,8 @@ function showWindow() {
 
 function hideWindow() {
   stopResize();
-  menuGrowFrom = null;
+  // Note: menuGrowFrom intentionally survives hide — the renderer closes any
+  // open popovers on next show and restores the pre-grow window size then.
   if (win) win.hide();
   firePluginEvent('window:hidden', {});
 }
@@ -610,15 +613,14 @@ function placePlugin(src) {
     || fs.readdirSync(src).some((f) => f.endsWith('.js'));
   if (!looksLikePlugin) throw new Error('that folder does not look like a Tenote plugin');
   const dest = path.join(PLUGINS_USER_DIR, name);
-  if (!path.resolve(dest).startsWith(PLUGINS_USER_DIR + path.sep)) throw new Error('bad destination');
+  if (!path.resolve(dest).startsWith(path.resolve(PLUGINS_USER_DIR) + path.sep)) throw new Error('bad destination');
   if (fs.existsSync(dest)) throw new Error(`"${name}" is already installed — remove it first (Open plugins folder)`);
   fs.mkdirSync(PLUGINS_USER_DIR, { recursive: true });
-  try {
-    fs.renameSync(src, dest);
-  } catch (e) {
-    fs.cpSync(src, dest, { recursive: true });
-    fs.rmSync(src, { recursive: true, force: true });
-  }
+  // Always copy — installing must not move the user's picked folder/file away
+  // from where they keep it. Bare .js files become <name>/index.js so the
+  // directory scanner discovers them (an extensionless file would be skipped).
+  if (isDir) fs.cpSync(src, dest, { recursive: true });
+  else { fs.mkdirSync(dest, { recursive: true }); fs.copyFileSync(src, path.join(dest, 'index.js')); }
   return name;
 }
 
@@ -903,6 +905,7 @@ function saveNote(payload) {
   const p = payload || {};
   const piped = host.applyBeforeSave({ id: safeId(p.id), text: String(p.text || ''), tags: Array.isArray(p.tags) ? p.tags : [] });
   const text = String(piped.text || '');
+  if (text.length > MAX_NOTE_CHARS) return { ok: false, error: 'note is too large (max 4 MB) — split it up' };
   let id = safeId(piped.id);
   let created = null;
 
@@ -955,6 +958,19 @@ function formatTimestamp(d) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
 }
 
+// Reads only the first `bytes` of a file — enough for frontmatter + title +
+// 140-char snippet, and dramatically cheaper than full reads for large folders.
+function readFileHead(file, bytes) {
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const buf = Buffer.alloc(bytes);
+    const n = fs.readSync(fd, buf, 0, bytes, 0);
+    return buf.toString('utf8', 0, n);
+  } catch (e) { return ''; }
+  finally { try { if (fd !== undefined) fs.closeSync(fd); } catch (e) { /* ignore */ } }
+}
+
 function listNotes() {
   try {
     if (!fs.existsSync(NOTES_DIR)) return [];
@@ -962,7 +978,7 @@ function listNotes() {
       .filter((f) => f.endsWith('.md'))
       .map((f) => {
         try {
-          const raw = fs.readFileSync(path.join(NOTES_DIR, f), 'utf8');
+          const raw = readFileHead(path.join(NOTES_DIR, f), 2048);
           const { meta, body } = parseNote(raw);
           return {
             id: meta.id || f.replace(/\.md$/, ''),
@@ -1031,6 +1047,38 @@ function recentNotes(limit) {
 
 // Paste-image support: saves to ~/Documents/Tenote Notes/images/ and returns
 // the relative path for a markdown reference (e.g. ![image](images/img-x.png)).
+const OWN_IMAGE_RE = /^img-[a-z0-9]+-[a-z0-9]{4}\.(png|jpe?g|gif|webp)$/i;
+
+// Deletes Tenote-created images no note references anymore. Only files matching
+// our own naming pattern are candidates — anything the user put in images/
+// themselves is left alone. Runs at most once a day from bootstrap.
+function sweepOrphanImages() {
+  const imgDir = path.join(NOTES_DIR, 'images');
+  if (!fs.existsSync(imgDir)) return;
+  const refs = new Set();
+  for (const f of fs.readdirSync(NOTES_DIR).filter((f) => f.endsWith('.md'))) {
+    try {
+      const raw = fs.readFileSync(path.join(NOTES_DIR, f), 'utf8');
+      for (const m of raw.matchAll(/!\[[^\]]*\]\((images\/[^)\s]+)\)/g)) refs.add(m[1]);
+    } catch (e) { /* ignore unreadable notes */ }
+  }
+  let removed = 0;
+  for (const f of fs.readdirSync(imgDir)) {
+    if (!OWN_IMAGE_RE.test(f)) continue;
+    if (refs.has('images/' + f)) continue;
+    try { fs.unlinkSync(path.join(imgDir, f)); removed++; } catch (e) { /* ignore */ }
+  }
+  if (removed) logger.info('note', `swept ${removed} orphaned image(s)`);
+}
+
+function maybeSweepImages() {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  if (Date.now() - (settings.lastImageSweep || 0) < DAY_MS) return;
+  settings.lastImageSweep = Date.now();
+  saveSettings();
+  try { sweepOrphanImages(); } catch (e) { logger.warn('note', 'image sweep failed', { error: e.message }); }
+}
+
 function attachImage(payload) {
   const p = payload || {};
   const mime = String(p.mime || '').toLowerCase();

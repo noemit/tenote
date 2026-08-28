@@ -488,6 +488,27 @@
       delete state.views[vid];
     }
     if (state.schemas[id]) delete state.schemas[id];
+    // If the disabled plugin owned the active theme, fall back to a theme that
+    // still exists — otherwise the swatch row shows nothing active and the old
+    // sheet stays applied until restart. state.themes is stale at this point
+    // (the toggle handler re-fetches after), so subtract the removed ids.
+    const meta = state.plugins.find((p) => p.name === id);
+    const removedThemes = new Set((meta && meta.themes) || []);
+    if (removedThemes.has(state.themeId)) {
+      const remaining = state.themes.filter((t) => !removedThemes.has(t.id));
+      const fallback = remaining.find((t) => t.id === 'latte') || remaining[0];
+      if (fallback) {
+        state.themeId = fallback.id;
+        markThemeActive();
+        applyThemeSheet(fallback.id);
+        jot.setTheme(fallback.id);
+      } else {
+        state.themeId = null;
+        state.themeSheet = null;
+        document.body.dataset.theme = '';
+        syncSheets();
+      }
+    }
     renderPluginsSection();
   }
 
