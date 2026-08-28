@@ -436,6 +436,7 @@ body {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
+  justify-content: flex-end; /* chips hug the buttons on the right, growing leftward */
   gap: 5px;
   overflow: hidden;
 }
