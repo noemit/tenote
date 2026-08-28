@@ -1,6 +1,6 @@
 # Signing & notarization status
 
-**Status: SIGNED + NOTARIZED as of 1.1.0 (2026-08-11).** The dmg/zip are signed
+**Status: SIGNED + NOTARIZED as of 1.3.0 (2026-08-28).** The dmg/zip are signed
 with `Developer ID Application: Noemi Titarenco (CT5KSA99W8)` (hardened runtime)
 and notarized with notarytool (`notarization successful` in the build log).
 The dmg itself carries no embedded code signature, which is fine for Gatekeeper.
@@ -28,15 +28,55 @@ later is possible if branding matters.
 - `README.md`: documents the `xattr -dr com.apple.quarantine` workaround and the
   "Open Anyway" route for the current unsigned release. Keep this until a notarized
   release is out.
+- `.github/workflows/release.yml`: a GitHub Actions workflow builds, signs, notarizes,
+  and publishes a release on every `v*.*.*` tag push (or via manual workflow dispatch).
 
-## What to do once the welcome email arrives
+## Required GitHub secrets
 
-1. **Certificate:** developer.apple.com → Certificates → "+" → **Developer ID
+For the release workflow to sign and notarize, add these repository secrets at
+**Settings → Secrets and variables → Actions**:
+
+| Secret | What it is |
+| --- | --- |
+| `APPLE_DEVELOPER_ID_CERTIFICATE` | Base64-encoded `.p12` of the **Developer ID Application** certificate |
+| `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD` | The password used when exporting the `.p12` |
+| `APPLE_ID` | The Apple ID email used for the developer account |
+| `APPLE_APP_SPECIFIC_PASSWORD` | An app-specific password from [appleid.apple.com](https://appleid.apple.com) |
+| `APPLE_TEAM_ID` | Team ID from [developer.apple.com](https://developer.apple.com) → Membership |
+
+To base64-encode the certificate on macOS:
+
+```sh
+base64 -i ~/Downloads/DeveloperIDApplication.p12 -o certificate.base64.txt
+```
+
+Then paste the contents of `certificate.base64.txt` into the `APPLE_DEVELOPER_ID_CERTIFICATE` secret.
+
+## Releasing a new version
+
+1. Bump the version in `package.json` (and run `npm install` to update `package-lock.json`).
+2. Commit and push the version bump to `main`.
+3. Create and push a tag:
+   ```sh
+   git tag v1.3.0
+   git push origin v1.3.0
+   ```
+4. The `Release Tenote` workflow runs automatically on a macOS runner, builds the
+   `dmg` and `zip`, signs + notarizes them, and creates a GitHub release with the
+   artifacts attached.
+
+You can also trigger a release manually from **Actions → Release Tenote → Run workflow**.
+
+## Local builds (alternative)
+
+If you prefer to build on your own Mac instead of GitHub Actions:
+
+1. **Certificate:** [developer.apple.com](https://developer.apple.com) → Certificates → "+" → **Developer ID
    Application**. Download, double-click to install into the login keychain. Verify:
    `security find-identity -v -p codesigning`.
-2. **App-specific password:** appleid.apple.com → Sign-In and Security → App-Specific
+2. **App-specific password:** [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security → App-Specific
    Passwords (used by notarytool).
-3. **Team ID:** developer.apple.com → Membership.
+3. **Team ID:** [developer.apple.com](https://developer.apple.com) → Membership.
 4. **Export env vars** (shell profile or an uncommitted local `.env`):
    ```sh
    export APPLE_ID="you@example.com"

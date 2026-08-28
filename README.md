@@ -153,7 +153,6 @@ socket (`scripts/tenotectl.js`).
 - iPhone app (soon)
 - Search across notes
 - Plugin system (a community repo once there are plugins worth sharing)
-- Signed & notarized dmg once the app has users to justify the Apple fee
 
 ## License
 
