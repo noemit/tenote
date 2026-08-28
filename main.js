@@ -1061,6 +1061,13 @@ const OWN_IMAGE_RE = /^img-[a-z0-9]+-[a-z0-9]{4}\.(png|jpe?g|gif|webp)$/i;
 // Deletes Tenote-created images no note references anymore. Only files matching
 // our own naming pattern are candidates — anything the user put in images/
 // themselves is left alone. Runs at most once a day from bootstrap.
+// Deletes Tenote-created images no note references anymore. Only files matching
+// our own naming pattern are candidates — anything the user put in images/
+// themselves is left alone. Runs at most once a day from bootstrap. Files younger
+// than a week are never touched: in a synced notes folder (iCloud/Dropbox) the
+// note that references an image may simply not have arrived on this machine yet.
+const SWEEP_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
 function sweepOrphanImages() {
   const imgDir = path.join(NOTES_DIR, 'images');
   if (!fs.existsSync(imgDir)) return;
@@ -1075,7 +1082,12 @@ function sweepOrphanImages() {
   for (const f of fs.readdirSync(imgDir)) {
     if (!OWN_IMAGE_RE.test(f)) continue;
     if (refs.has('images/' + f)) continue;
-    try { fs.unlinkSync(path.join(imgDir, f)); removed++; } catch (e) { /* ignore */ }
+    try {
+      const p = path.join(imgDir, f);
+      if (Date.now() - fs.statSync(p).mtimeMs < SWEEP_MIN_AGE_MS) continue;
+      fs.unlinkSync(p);
+      removed++;
+    } catch (e) { /* ignore */ }
   }
   if (removed) logger.info('note', `swept ${removed} orphaned image(s)`);
 }

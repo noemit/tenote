@@ -116,15 +116,17 @@
     const btn = moreBtn();
     const pop = morePop();
     if (!strip || !btn || !pop) return;
-    const has = state.chips.length > 0;
+    const chips = [...strip.children];
+    const vis = chips.filter((c) => !c.classList.contains('gone'));
+    // Only claim topbar space when there is something to see — a plugin that
+    // hides all its chips must not leave an empty 46%-wide strip behind.
+    const has = vis.length > 0;
     $('#chips-strip').classList.toggle('has-chips', has);
     if (!has) { btn.classList.add('hidden'); closeChipsMenu(); return; }
-    const chips = [...strip.children];
-    for (const c of chips) {
-      if (!c.classList.contains('gone') && !c.classList.contains('ovf')) c._w = c.offsetWidth;
+    for (const c of vis) {
+      if (!c.classList.contains('ovf')) c._w = c.offsetWidth;
     }
     const gap = parseFloat(getComputedStyle(strip).columnGap) || 0;
-    const vis = chips.filter((c) => !c.classList.contains('gone'));
     btn.classList.add('hidden');
     const total = vis.reduce((s, c) => s + (c._w || 0), 0) + gap * Math.max(0, vis.length - 1);
     if (total > strip.clientWidth + 1) {

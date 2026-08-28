@@ -21,7 +21,7 @@
 - **No note size cap** — notes now cap at 4 MB, enforced in renderer and main, with a clear status message.
 - **`listNotes` read every note fully** — now reads only the first 2 KB (frontmatter + title + 140-char snippet never need more).
 - **Log rotation only at startup** — runtime rotation via in-process byte tracking; rotates at 5 MB, keeps one `.1` backup.
-- **Orphaned pasted images accumulated forever** — daily startup sweep deletes Tenote-named images (`img-<base36>-<rand>.<ext>`) that no note references. User files in `images/` are never touched.
+- **Orphaned pasted images accumulated forever** — daily startup sweep deletes Tenote-named images (`img-<base36>-<rand>.<ext>`) that no note references. User files in `images/` are never touched; files younger than 7 days are also skipped so sync-folder lag (iCloud/Dropbox) can't make a referenced image look orphaned.
 - **Disabling the plugin owning the active theme dangled** — renderer now falls back to a live theme (latte, else first available) and persists it.
 
 ## Fixed in 1.3.3 (audit P2)
