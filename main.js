@@ -278,6 +278,11 @@ function createWindow() {
     if (!isQuitting) { e.preventDefault(); logger.debug('window', 'close prevented -> hide'); win.hide(); }
   });
   win.on('closed', () => { win = null; stopResize(); });
+  // Chromium's drag-region double-click can zoom/fullscreen the window on macOS
+  // even with maximizable:false / fullscreenable:false. A screen-sized transparent
+  // window swallows clicks and has crashed the renderer. Refuse both states.
+  win.on('maximize', () => { try { win.unmaximize(); } catch (e) { /* ignore */ } });
+  win.on('enter-full-screen', () => { try { win.setFullScreen(false); } catch (e) { /* ignore */ } });
 }
 
 const RESIZE_EDGES = new Set(['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']);
@@ -300,7 +305,7 @@ function ensureMenuSize(opts) {
     const w = menuGrowFrom.width;
     const h = menuGrowFrom.height;
     const x = b.x + (b.width - w);
-    win.setBounds({ x: Math.round(x), y: b.y, width: w, height: h }, true);
+    win.setBounds({ x: Math.round(x), y: b.y, width: w, height: h });
     menuGrowFrom = null;
     return true;
   }
@@ -325,7 +330,7 @@ function ensureMenuSize(opts) {
     if (x + nw > wa.x + wa.width) x = wa.x + wa.width - nw;
   }
   if (nh < MIN_WINDOW_HEIGHT) nh = MIN_WINDOW_HEIGHT;
-  win.setBounds({ x: Math.round(x), y: b.y, width: Math.round(nw), height: Math.round(nh) }, true);
+  win.setBounds({ x: Math.round(x), y: b.y, width: Math.round(nw), height: Math.round(nh) });
   return true;
 }
 

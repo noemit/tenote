@@ -639,11 +639,18 @@
     }
   });
 
+  // Pointer capture matters: releasing the mouse outside this tiny window
+  // used to leave the resize interval running forever (the window followed the
+  // cursor, clicks landed wrong, everything felt slow). Capture delivers
+  // pointerup/pointercancel even off-window.
   document.querySelectorAll('.rz').forEach((el) => {
-    el.addEventListener('mousedown', (e) => {
+    el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
       jot.resizeStart(el.dataset.edge);
     });
+    el.addEventListener('pointerup', () => jot.resizeEnd());
+    el.addEventListener('pointercancel', () => jot.resizeEnd());
   });
   window.addEventListener('mouseup', () => jot.resizeEnd());
   window.addEventListener('blur', () => jot.resizeEnd());

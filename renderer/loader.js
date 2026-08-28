@@ -103,14 +103,68 @@
 
   // ---- chips ----------------------------------------------------------------
   function chipsEl() { return $('#plugin-chips'); }
+  function moreBtn() { return $('#chips-more'); }
+  function morePop() { return $('#chips-more-pop'); }
 
-  function updateArrows() {
+  function closeChipsMenu() { const p = morePop(); if (p) p.classList.add('hidden'); }
+
+  // Chips that don't fit get .ovf (display:none) and reappear inside the "+N"
+  // menu as proxy buttons that forward clicks/hover to the real chip. Widths
+  // are cached so a layout pass is pure math — no DOM thrash, no observer loops.
+  function relayoutChips() {
     const strip = chipsEl();
-    if (!strip) return;
-    const over = strip.scrollWidth > strip.clientWidth + 1;
-    $('#chips-prev').classList.toggle('hidden', !over || strip.scrollLeft <= 2);
-    $('#chips-next').classList.toggle('hidden', !over || strip.scrollLeft >= strip.scrollWidth - strip.clientWidth - 2);
-    $('#chips-strip').classList.toggle('has-chips', state.chips.length > 0);
+    const btn = moreBtn();
+    const pop = morePop();
+    if (!strip || !btn || !pop) return;
+    const has = state.chips.length > 0;
+    $('#chips-strip').classList.toggle('has-chips', has);
+    if (!has) { btn.classList.add('hidden'); closeChipsMenu(); return; }
+    const chips = [...strip.children];
+    for (const c of chips) {
+      if (!c.classList.contains('gone') && !c.classList.contains('ovf')) c._w = c.offsetWidth;
+    }
+    const gap = parseFloat(getComputedStyle(strip).columnGap) || 0;
+    const vis = chips.filter((c) => !c.classList.contains('gone'));
+    btn.classList.add('hidden');
+    const total = vis.reduce((s, c) => s + (c._w || 0), 0) + gap * Math.max(0, vis.length - 1);
+    if (total > strip.clientWidth + 1) {
+      btn.classList.remove('hidden');
+      const avail = strip.clientWidth; // re-read: the +N button now takes room
+      let x = 0;
+      let cut = false;
+      for (const c of chips) {
+        if (c.classList.contains('gone')) { c.classList.remove('ovf'); continue; }
+        const w = c._w || 0;
+        if (cut || x + w > avail - 2) { c.classList.add('ovf'); cut = true; }
+        else { c.classList.remove('ovf'); x += w + gap; }
+      }
+      const ovfd = chips.filter((c) => c.classList.contains('ovf'));
+      if (ovfd.length && ovfd.length === vis.length) ovfd[0].classList.remove('ovf'); // never hide every chip
+    } else {
+      for (const c of chips) c.classList.remove('ovf');
+    }
+    const ovf = chips.filter((c) => c.classList.contains('ovf'));
+    const sig = ovf.map((c) => chips.indexOf(c) + ':' + c.textContent).join('|');
+    if (sig !== pop.dataset.sig) {
+      pop.dataset.sig = sig;
+      pop.innerHTML = '';
+      for (const real of ovf) {
+        const proxy = document.createElement('button');
+        proxy.type = 'button';
+        proxy.className = real.className.replace(/\bovf\b/g, '').trim();
+        proxy.textContent = real.textContent;
+        proxy.addEventListener('click', () => { closeChipsMenu(); real.click(); });
+        proxy.addEventListener('mouseenter', () => { if (real._desc) schedulePop(proxy, real._desc); });
+        proxy.addEventListener('mouseleave', scheduleHidePop);
+        pop.appendChild(proxy);
+      }
+    }
+    if (ovf.length === 0) {
+      btn.classList.add('hidden');
+      closeChipsMenu();
+    } else {
+      btn.textContent = '+' + ovf.length;
+    }
   }
 
   function makeChip(desc, owner) {
@@ -120,25 +174,27 @@
     el.className = 'chip-p' + (desc.variant === 'accent' ? ' accent' : '');
     el.tabIndex = -1;
     el.textContent = desc.label != null ? String(desc.label) : '';
+    el._desc = desc;
     if (typeof desc.onClick === 'function') {
       el.addEventListener('click', () => safe(desc.onClick, `chip click ${id}`));
     }
     el.addEventListener('mouseenter', () => schedulePop(el, desc));
     el.addEventListener('mouseleave', scheduleHidePop);
     chipsEl().appendChild(el);
-    requestAnimationFrame(updateArrows);
+    requestAnimationFrame(relayoutChips);
     return {
       update(label, variant) {
         if (label != null) el.textContent = String(label);
         if (variant) el.classList.toggle('accent', variant === 'accent');
-        requestAnimationFrame(updateArrows);
+        el.classList.remove('ovf'); // re-measure the new label's width
+        requestAnimationFrame(relayoutChips);
       },
-      show() { el.classList.remove('gone'); requestAnimationFrame(updateArrows); },
-      hide() { el.classList.add('gone'); hidePopIf(el); requestAnimationFrame(updateArrows); },
+      show() { el.classList.remove('gone'); requestAnimationFrame(relayoutChips); },
+      hide() { el.classList.add('gone'); hidePopIf(el); requestAnimationFrame(relayoutChips); },
       remove() {
         el.remove();
         state.chips = state.chips.filter((c) => c._id !== id);
-        updateArrows();
+        relayoutChips();
       },
       _id: id,
       _owner: owner,
@@ -191,13 +247,17 @@
   }
 
   function wireChips() {
-    const prev = $('#chips-prev');
-    const next = $('#chips-next');
-    prev.addEventListener('click', () => chipsEl().scrollBy({ left: -90, behavior: 'smooth' }));
-    next.addEventListener('click', () => chipsEl().scrollBy({ left: 90, behavior: 'smooth' }));
-    new ResizeObserver(updateArrows).observe(chipsEl());
-    window.addEventListener('resize', updateArrows);
-    updateArrows();
+    const btn = moreBtn();
+    const pop = morePop();
+    btn.addEventListener('click', () => { hidePop(); pop.classList.toggle('hidden'); });
+    document.addEventListener('click', (e) => {
+      if (pop.classList.contains('hidden')) return;
+      if (e.target.closest('#chips-more') || e.target.closest('#chips-more-pop')) return;
+      closeChipsMenu();
+    });
+    new ResizeObserver(relayoutChips).observe(chipsEl());
+    window.addEventListener('resize', relayoutChips);
+    relayoutChips();
   }
 
   // ---- markdown chain -------------------------------------------------------
@@ -362,6 +422,8 @@
     if (state.activeView) { closeView(); return true; }
     const modal = $('#plugin-modal');
     if (modal && !modal.classList.contains('hidden')) { closeModal(); return true; }
+    const mpop = morePop();
+    if (mpop && !mpop.classList.contains('hidden')) { closeChipsMenu(); return true; }
     if (state.activeChip) { hidePop(); return false; }
     return false;
   }
