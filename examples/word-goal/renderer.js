@@ -2,8 +2,17 @@
 
 module.exports = function wordGoal(tenote) {
   let goal = Number(tenote.settings.get('goal', 750)) || 750;
-  let savedWordsToday = -1;
-  let lastCompute = 0;
+  let savedWordsToday = -1; // -1 = never computed
+  let dirty = false;        // another note changed since the last compute
+  let lastCompute = 0;      // typing-refresh throttle
+  let lastSavedAt = 0;      // savedWords() recompute throttle (IPC storm guard)
+  let running = false;      // coalesce overlapping refreshes
+  let queued = false;
+  let activeId = null;
+
+  // The expensive part (list + up to 50 full note reads over IPC) runs at most
+  // once per 15s no matter how many invalidating events arrive.
+  const SAVED_TTL_MS = 15000;
 
   const chip = tenote.ui.chips.add({ label: '', onHover });
   chip.hide();
@@ -16,8 +25,6 @@ module.exports = function wordGoal(tenote) {
   function count(text) {
     return String(text).split(/\s+/).filter(Boolean).length;
   }
-
-  let activeId = null;
 
   async function savedWords() {
     try {
@@ -38,13 +45,24 @@ module.exports = function wordGoal(tenote) {
     const now = Date.now();
     if (!force && now - lastCompute < 2000) return;
     lastCompute = now;
-    if (savedWordsToday < 0) savedWordsToday = await savedWords();
-    const current = window.__tenoteComposer ? count(window.__tenoteComposer.getText()) : 0;
-    const total = savedWordsToday + current;
-    if (!total) { chip.hide(); return; }
-    if (total >= goal) chip.update(`${total}/${goal} 🎉`, 'accent');
-    else chip.update(`${total}/${goal}`, 'default');
-    chip.show();
+    if (running) { queued = true; return; } // one queued rerun, never a pile-up
+    running = true;
+    try {
+      if (savedWordsToday < 0 || (dirty && now - lastSavedAt > SAVED_TTL_MS)) {
+        savedWordsToday = await savedWords();
+        lastSavedAt = Date.now();
+        dirty = false;
+      }
+      const current = window.__tenoteComposer ? count(window.__tenoteComposer.getText()) : 0;
+      const total = savedWordsToday + current;
+      if (!total) { chip.hide(); return; }
+      if (total >= goal) chip.update(`${total}/${goal} 🎉`, 'accent');
+      else chip.update(`${total}/${goal}`, 'default');
+      chip.show();
+    } finally {
+      running = false;
+      if (queued) { queued = false; refresh(true); }
+    }
   }
 
   function onHover() {
@@ -52,8 +70,17 @@ module.exports = function wordGoal(tenote) {
   }
 
   tenote.events.on('composer:input', () => refresh(false));
-  tenote.events.on('note:saved', (p) => { activeId = p && p.id; savedWordsToday = -1; refresh(true); });
-  tenote.events.on('note:opened', (p) => { activeId = p && p.id; savedWordsToday = -1; refresh(true); });
-  tenote.events.on('window:shown', () => { activeId = null; savedWordsToday = -1; refresh(true); });
+  tenote.events.on('note:saved', (p) => {
+    const id = p && p.id;
+    if (!id || id === activeId) return; // the open note autosaving — counted live already
+    const composing = window.__tenoteComposer && window.__tenoteComposer.getText().trim();
+    if (!activeId && composing) { activeId = id; return; } // first save gave the open note its id
+    dirty = true; // a different note changed (tenotectl, another plugin)
+    refresh(true);
+  });
+  tenote.events.on('note:opened', (p) => { activeId = p && p.id; dirty = true; refresh(true); });
+  // Keep activeId across window:shown — the open note is counted live, so it
+  // must stay excluded from savedWords (nulling it here double-counted it).
+  tenote.events.on('window:shown', () => { dirty = true; refresh(true); });
   refresh(true);
 };
