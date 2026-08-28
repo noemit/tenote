@@ -1,235 +1,59 @@
 # Tenote code audit
 
-Read-only review of the app sources (`main.js`, `preload.js`, `logger.js`, `renderer/*`, `scripts/*`, `package.json`). No files were changed as part of the audit. Syntax check (`npm run check`) passes.
+**Date:** 2026-08-28 (supersedes the 2026-08-09 audit)
+**Scope:** `main.js`, `preload.js`, `logger.js`, `lib/host.js`, `renderer/*`, `scripts/*`, `plugins/*`, `package.json`.
 
-**Date:** 2026-08-09  
-**Overall:** Small, readable Electron app with solid baseline security (`contextIsolation`, `sandbox`, no `nodeIntegration`, CSP, privileged `timg` path checks, `safeId`). Most issues are real edge cases: a couple of user-facing data/UX bugs, a few reliability gaps as notes grow, and some incomplete wiring.
-
----
-
-## Critical / high — can lose data or break intended behavior
-
-### 1. Unsaved text can be lost when opening another note
-
-**Where:** `renderer/app.js` — `openNote()` vs callers of `newNote()` / hide
-
-`flushSave()` is used for New, Close, Esc, panel open, and window hide. It is **not** called before `openNote()` (recents strip or all-notes list).
-
-If the user types and within the 350 ms debounce clicks a recent note, that text is never written.
-
-**Suggestion:** Call `flushSave()` (or await the save chain) at the start of `openNote()`.
+**Overall:** Small, readable Electron app with solid baseline security (`contextIsolation`, `sandbox`, no `nodeIntegration`, CSP, privileged-scheme path checks, `safeId`). Plugin host isolates failures (3-strikes suspension, per-owner teardown). Notes and settings write atomically (tmp + rename). 19 node:test suites cover the plugin host.
 
 ---
 
-### 2. First-run UI never actually runs
-
-**Where:** `main.js` ~110–115 vs `state:get` ~367 vs `renderer/app.js` ~416–418
-
-Bootstrap does:
-
-```js
-settings.firstRunDone = true;
-saveSettings();
-// then later show window
-```
-
-`state:get` returns `firstRun: !settings.firstRunDone`, so by the time the renderer calls `getState()`, `firstRun` is always `false`. The 9 s hint on first launch is dead code.
-
-**Suggestion:** Keep a one-shot flag separate from persistence (e.g. in-memory `isFirstSession`), or set `firstRunDone` only after the first show / after the renderer has read it.
-
----
-
-### 3. Non-atomic note writes
-
-**Where:** `main.js` `saveNote` → `fs.writeFileSync(file, ...)`
-
-A crash, kill, or full disk mid-write can leave a truncated/corrupt `.md` file (including frontmatter). Same pattern for settings and images.
-
-**Suggestion:** Write to `file + '.tmp'` then `fs.renameSync` (atomic on same volume).
-
----
-
-## Medium — reliability, consistency, scaling
-
-### 4. `TENOTE_SOCKET` is documented but ignored by the app
-
-**Where:** README env table; `scripts/tenotectl.js` reads it; **`main.js` does not**
-
-Socket path is hardcoded:
-
-```js
-path.join(os.tmpdir(), `tenote-${uid}.sock`)
-```
-
-If someone sets `TENOTE_SOCKET`, skhd/tenotectl and the app talk to different sockets → “hotkey does nothing.”
-
-**Suggestion:** Use `process.env.TENOTE_SOCKET || default` in `main.js` as well.
-
----
-
-### 5. Tray menu desyncs when settings change from the UI
-
-**Where:** `settings:setHideOnBlur` vs `settings:setLaunchAtLogin`
-
-`setLaunchAtLogin` calls `rebuildTrayMenu()`; `setHideOnBlur` does not. The tray “Hide when focus lost” checkbox can disagree with the in-app toggle until restart.
-
-**Suggestion:** Call `rebuildTrayMenu()` from every setting that appears in the tray.
-
----
-
-### 6. Log rotation only runs at process start
-
-**Where:** `logger.js`
-
-`rotateIfNeeded()` runs only from `init()`. Once the write stream is open, a long-lived session never rotates; `main.log` can grow without bound. After rename on next start, only one backup (`.1`) is kept.
-
-**Suggestion:** Check size periodically (or before each write / every N lines), close stream, rotate, reopen.
-
----
-
-### 7. `listNotes` / history scale poorly
-
-**Where:** `main.js` `listNotes`, `recentNotes`
-
-Every list reads **every** `.md` file fully. History open + frequent `refreshPanel` after saves re-reads everything. Fine for dozens of notes; painful for thousands (sync folders, heavy users).
-
-**Suggestion:** Cache metadata, or sort/list with mtime + lazy body for title/snippet; debounce panel refresh.
-
----
-
-### 8. No note size limit
-
-**Where:** `saveNote`
-
-Images are capped at 15 MB; note body is not. Huge pastes go over IPC and to disk without guard.
-
-**Suggestion:** Cap text length (e.g. a few MB) and return a clear error.
-
----
-
-### 9. Pasted images are never garbage-collected
-
-**Where:** `attachImage` + empty-note delete
-
-Images land in `images/` with random names. Deleting a note (or emptying it) does not remove referenced images. `noteId` is sent from the renderer but unused.
-
-**Suggestion:** Track refs, or periodic orphan cleanup; or namespace images by note id.
-
----
-
-### 10. `tenotectl` launch path is shell-string based
-
-**Where:** `scripts/tenotectl.js`
-
-```js
-exec(`open "${appPath}"`)
-```
-
-A malicious or malformed `TENOTE_APP_PATH` with quotes can break out of the string (same-user / env injection). Uncommon, but easy to harden with `spawn('open', [appPath], { shell: false })`.
-
----
-
-### 11. Save chain errors can stall later saves
-
-**Where:** `renderer/app.js` `saveChain`
-
-```js
-saveChain = saveChain.then(async () => { ... });
-```
-
-If a handler threw outside the inner `try/catch` (or a future change does), the chain rejects and later `.then` callbacks never run → silent stop of autosave.
-
-**Suggestion:** Always `.catch` on the chain and reset, e.g.  
-`saveChain = saveChain.then(...).catch(...)`.
-
----
-
-## Lower / security & polish
-
-### 12. Markdown preview: solid XSS stance, small residual risks
-
-**Where:** `mdToHtml`
-
-Escape-first is the right approach; only `http(s)` links/images. Residual notes:
-
-- CSP allows `img-src https:` → remote images load in preview (tracking/beacon risk if the user pastes a remote image URL).
-- Link clicks rely on `will-navigate` / `setWindowOpenHandler`; keep those handlers if you ever loosen CSP or markdown rules.
-
----
-
-### 13. `timg` path checks are good; symlinks are not blocked
-
-**Where:** `setupImageProtocol`
-
-Prefix + `path.resolve` under `NOTES_DIR` is correct for `../` style escapes. A symlink under `images/` to elsewhere would still be followed by `readFileSync` (same-user local threat model; low for this app).
-
----
-
-### 14. Unix socket: brief permission race
-
-**Where:** `startSocketServer`
-
-Socket is created, then `chmod 0o600`. On a shared machine there is a short window with default umask permissions. Commands are only show/hide/quit/status (no note R/W). Prefer setting umask before `listen`, or use a private dir.
-
----
-
-### 15. Settings file is trust-on-read
-
-**Where:** `loadSettings`
-
-`Object.assign(defaultSettings(), raw)` with no schema validation. A hand-edited `settings.json` can put non-booleans into flags (`"hideOnBlur": "false"` is truthy in JS if ever used raw). Coercion on read would be safer.
-
----
-
-### 16. Frontmatter is minimal, not a full YAML parser
-
-**Where:** `parseNote` / `serializeNote`
-
-Fine for app-owned files. Hand-edited notes with multiline values, nested structures, or odd characters may parse oddly. Tags are sanitized on write.
-
----
-
-### 17. IPC surface is appropriately small; log channel is unbounded
-
-**Where:** `preload.js` / `ipcMain.on('log')`
-
-No arbitrary FS API from the renderer — good. Renderer can still spam the log channel with huge messages (sliced only on `console-message`, not on the `log` IPC).
-
----
-
-### 18. Packaging / product notes (not runtime bugs)
-
-| Item | Note |
-|------|------|
-| Unsigned app (`identity: null`) | Expected; Gatekeeper friction as README says |
-| `scripts/**` in build `files` | Ships setup/tenotectl inside the app bundle; setup is really a source/dev flow |
-| `docs/screenshot.png` ~3 MB | Fine for GitHub; large for clones |
-| No automated tests | High regression risk as features grow |
-| macOS-only in practice | Linux paths exist in logger; product is Mac |
-
----
-
-## What’s in good shape
-
-- **Process isolation:** sandbox + contextIsolation + no node in renderer
-- **Single instance** + toggle coalesce for skhd double-fire
-- **`safeId`** blocks path separators for note ids
-- **Empty note → delete** is intentional and documented
-- **`gen` + save chain** largely avoid applying stale save results after `newNote`
-- **External links** don’t load inside the frameless window
-- **skhd setup** is idempotent (won’t duplicate bindings)
-- **prestart** self-heals wrong-arch Electron binaries
-- Clear logging to a user-visible log dir
-
----
-
-## Priority order if you fix things later
-
-1. **`flushSave` before `openNote`** — real data loss
-2. **Atomic writes** for notes (and ideally settings)
-3. **`firstRun` flag wiring** — broken onboarding
-4. **`TENOTE_SOCKET` in main** — matches docs / ops
-5. **Tray rebuild on hide-on-blur** — small but confusing
-6. **Log rotation during runtime**
-7. **Note size limit + listNotes performance** as usage grows
-8. **Image orphan cleanup**
+## Fixed in 1.3.1 (UX correctness cluster)
+
+- **Topbar double-click zoom/fullscreen/crash** — Chromium's drag-region double-click zooms on macOS even with `maximizable: false`; the now-screen-sized transparent window swallowed clicks and could take down the renderer. Main process now force-reverts `maximize` / `enter-full-screen`.
+- **Resize never ended if mouse was released off-window** — `mouseup` on `window` doesn't fire outside the BrowserWindow, leaving the 16 ms resize interval running forever (window followed the cursor; everything downstream felt slow; quit seemed dead). Resize now uses pointer capture (`pointerup`/`pointercancel` delivered off-window), with `mouseup`/`blur` as fallback.
+- **Slow/janky settings popover growth** — `ensureMenuSize` used animated `setBounds`, which is janky on transparent windows. Now instant.
+- **Plugin chips cut off** — replaced scroll arrows with fit-what-fits + a `+N` overflow dropdown (proxy buttons forward clicks/hover to the real chips). Strip width is a fixed 46% so overflow measurement can't oscillate.
+
+## Fixed in 1.3.2 (audit P0/P1)
+
+- **Plugin install moved the user's picked folder** — `placePlugin` renamed the source into the plugins dir. Now always copies; bare `.js` installs wrap into `<name>/index.js` so the directory scanner actually discovers them.
+- **Popover size-restore lost across window hide** — `menuGrowFrom` was nulled on hide while the renderer kept the popover open. It now survives hide; restore happens on next show.
+- **No note size cap** — notes now cap at 4 MB, enforced in renderer and main, with a clear status message.
+- **`listNotes` read every note fully** — now reads only the first 2 KB (frontmatter + title + 140-char snippet never need more).
+- **Log rotation only at startup** — runtime rotation via in-process byte tracking; rotates at 5 MB, keeps one `.1` backup.
+- **Orphaned pasted images accumulated forever** — daily startup sweep deletes Tenote-named images (`img-<base36>-<rand>.<ext>`) that no note references. User files in `images/` are never touched.
+- **Disabling the plugin owning the active theme dangled** — renderer now falls back to a live theme (latte, else first available) and persists it.
+
+## Fixed in 1.3.3 (audit P2)
+
+- **`tenotectl` shell-string launch** — `exec('open "' + appPath + '"')` → `execFile('open', [appPath])`.
+- **Theme CSS cache never invalidated** — cached with file mtime; editing a theme on disk applies on next theme switch, no restart.
+- **Shortcut bookkeeping was single-slot** — `pluginShortcuts` is now owner→Set (disable unregisters all of a plugin's shortcuts), and the tray label is reserved for `core-shortcuts` so later registrations can't clobber it.
+- **Name-collision theme leak** — a plugin skipped for a name collision no longer registers its themes globally.
+- **Dead code** — removed the unused `shortcuts` array and the unexported-anyway `HOOK_EVENTS` export (kept as an in-code documentation list).
+
+## Known limitations (accepted, watch items)
+
+- **`document.execCommand('bold'/'italic'/'insertText')`** is deprecated API. It works in current Chromium and the serializer handles both `<b>`/`<strong>` and `<i>`/`<em>`, but a future Electron may remove it — the fix then is a Selection/Range-based formatter.
+- **`listNotes` still scans every note file** (2 KB heads now) and the panel refreshes after each save. Fine into the low thousands of notes; beyond that, add an mtime-indexed cache.
+- **Renderer plugin code is fully trusted** (user-installed local JS injected via `executeJavaScript`). That's the intended threat model — plugins can do anything the app can.
+- **Markdown preview is a small hand-rolled escape-first parser**, not a full Markdown implementation. Multiline YAML frontmatter in hand-edited notes parses loosely.
+- **Plugin timers survive live-disable** until relaunch (documented best-effort teardown).
+- **macOS-only in practice** (`ditto` for zip installs, login items, tray template images).
+
+## Fixed earlier (2026-08-09 audit items)
+
+- `flushSave` before `openNote` (data loss on quick note switching)
+- First-run flag wiring (`isFirstSession` one-shot)
+- Atomic writes for notes and settings
+- `TENOTE_SOCKET` honored in main process
+- Tray menu rebuilds when settings change from the UI
+- Automated tests now exist (`npm test`, 19 suites)
+- Releases are signed + notarized (see `docs/SIGNING.md`)
+
+## Priority if more issues appear
+
+1. Data-loss/crash class first (writes, saves, window state)
+2. Renderer freezes / stuck loops (intervals, observers)
+3. Scaling costs (listNotes, panel refresh, images)
+4. API deprecations (`execCommand`) when Electron removes them

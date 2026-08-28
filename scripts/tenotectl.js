@@ -18,7 +18,7 @@ const net = require('net');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
-const { exec, spawn } = require('child_process');
+const { execFile, spawn } = require('child_process');
 
 const uid = typeof process.getuid === 'function' ? process.getuid() : process.pid;
 const SOCKET = process.env.TENOTE_SOCKET || path.join(os.tmpdir(), `tenote-${uid}.sock`);
@@ -72,8 +72,8 @@ function launchApp() {
     }
 
     const appPath = process.env.TENOTE_APP_PATH;
-    const open = appPath ? `open "${appPath}"` : 'open -a "Tenote"';
-    exec(open, (err) => {
+    // execFile with an argv array — no shell string to break out of.
+    execFile('open', appPath ? [appPath] : ['-a', 'Tenote'], (err) => {
       if (err) resolve(new Error('could not launch the app — start it manually (npm start, or open Tenote.app)'));
       else resolve(null);
     });

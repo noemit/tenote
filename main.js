@@ -445,7 +445,7 @@ function toggleWindow() {
 }
 
 // ---- shortcuts (registered by plugins via the host) ------------------------
-const pluginShortcuts = new Map(); // owner -> accelerator
+const pluginShortcuts = new Map(); // owner -> Set of accelerators
 
 function registerPluginShortcut({ accelerator, fn, owner }) {
   try {
@@ -453,8 +453,14 @@ function registerPluginShortcut({ accelerator, fn, owner }) {
       const r = hostSafeCall('shortcut', accelerator, fn);
       void r;
     })) return false;
-    activeShortcut = accelerator;
-    if (owner) pluginShortcuts.set(owner, accelerator);
+    // activeShortcut drives the tray/menu shortcut label — that's the toggle
+    // shortcut, owned by core-shortcuts. Later plugins registering shortcuts
+    // must not clobber the label.
+    if (owner === 'core-shortcuts' || !activeShortcut) activeShortcut = accelerator;
+    if (owner) {
+      if (!pluginShortcuts.has(owner)) pluginShortcuts.set(owner, new Set());
+      pluginShortcuts.get(owner).add(accelerator);
+    }
     logger.info('shortcut', 'registered', { shortcut: accelerator });
     return true;
   } catch (e) {
@@ -464,10 +470,13 @@ function registerPluginShortcut({ accelerator, fn, owner }) {
 }
 
 function unregisterPluginShortcuts(owner) {
-  const acc = pluginShortcuts.get(owner);
-  if (!acc) return;
-  try { globalShortcut.unregister(acc); } catch (e) { /* ignore */ }
+  const accs = pluginShortcuts.get(owner);
+  if (!accs) return;
+  for (const acc of accs) {
+    try { globalShortcut.unregister(acc); } catch (e) { /* ignore */ }
+  }
   pluginShortcuts.delete(owner);
+  if (accs.has(activeShortcut)) activeShortcut = null; // label falls back to BUILTIN_SHORTCUT
 }
 
 function hostSafeCall(label, owner, fn) {
