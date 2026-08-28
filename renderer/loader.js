@@ -346,15 +346,21 @@
       const cb = e.target.closest('input[data-plug]');
       if (!cb) return;
       const name = cb.dataset.plug;
-      const r = await hostCall('setEnabled', { name, enabled: cb.checked });
-      if (!r) { setStatus('Toggle failed', 3000); return; }
-      setStatus(r.active ? `"${name}" is on` : (cb.checked ? `"${name}" failed to activate` : `"${name}" is off`), 3000);
-      const st = await hostCall('state');
-      if (st) {
-        state.plugins = st.plugins || [];
-        state.themes = st.themes || [];
-        renderThemeRow();
-        renderPluginsSection();
+      cb.disabled = true; // no double-toggles while the call is in flight — and a
+      // concurrent re-render can't make a pending toggle look like it snapped back
+      try {
+        const r = await hostCall('setEnabled', { name, enabled: cb.checked });
+        if (!r) { setStatus('Toggle failed', 3000); return; }
+        setStatus(r.active ? `"${name}" is on` : (cb.checked ? `"${name}" failed to activate` : `"${name}" is off`), 3000);
+        const st = await hostCall('state');
+        if (st) {
+          state.plugins = st.plugins || [];
+          state.themes = st.themes || [];
+          renderThemeRow();
+          renderPluginsSection();
+        }
+      } finally {
+        cb.disabled = false;
       }
     });
     box.addEventListener('click', async (e) => {

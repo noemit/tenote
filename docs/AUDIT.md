@@ -21,7 +21,7 @@
 - **No note size cap** — notes now cap at 4 MB, enforced in renderer and main, with a clear status message.
 - **`listNotes` read every note fully** — now reads only the first 2 KB (frontmatter + title + 140-char snippet never need more).
 - **Log rotation only at startup** — runtime rotation via in-process byte tracking; rotates at 5 MB, keeps one `.1` backup.
-- **Orphaned pasted images accumulated forever** — daily startup sweep deletes Tenote-named images (`img-<base36>-<rand>.<ext>`) that no note references. User files in `images/` are never touched; files younger than 7 days are also skipped so sync-folder lag (iCloud/Dropbox) can't make a referenced image look orphaned.
+- **Orphaned pasted images accumulated forever** — daily startup sweep deletes Tenote-named images (`img-<base36>-<rand>.<ext>`) that no note references. User files in `images/` are never touched.
 - **Disabling the plugin owning the active theme dangled** — renderer now falls back to a live theme (latte, else first available) and persists it.
 
 ## Fixed in 1.3.3 (audit P2)
@@ -31,6 +31,15 @@
 - **Shortcut bookkeeping was single-slot** — `pluginShortcuts` is now owner→Set (disable unregisters all of a plugin's shortcuts), and the tray label is reserved for `core-shortcuts` so later registrations can't clobber it.
 - **Name-collision theme leak** — a plugin skipped for a name collision no longer registers its themes globally.
 - **Dead code** — removed the unused `shortcuts` array and the unexported-anyway `HOOK_EVENTS` export (kept as an in-code documentation list).
+
+## Fixed in 1.3.4 (event-loop blocking + self-audit hardening)
+
+- **Sync note I/O froze the whole app on iCloud-evicted files** — with Desktop & Documents iCloud sync, `readFileSync` on a cloud-only note blocks until it downloads, and because it ran on the main event loop, *every* IPC queued behind it: gear dead, chips dead, plugin toggles appeared to snap back, opening the notes list took a minute. `listNotes` / `readNote` / `recentNotes` / the image sweep now use `fs.promises` (downloads stall a worker thread, never the loop), and `wrapIpc` handles async handlers.
+- **Image sweep ran synchronously at startup** — now delayed 30 s past bootstrap and fully async.
+- **Plugin toggle could look reverted while its IPC was in flight** — the checkbox is disabled until the call returns.
+- **Image sweep vs sync-folder lag** — files younger than 7 days are never swept (a note referencing them may not have synced yet).
+- **Empty chips strip claimed 46% of the topbar** — strip visibility now follows *visible* chips, so a plugin that hides all its chips leaves no empty strip.
+- **`TENOTE_NO_PLUGINS=1`** starts with all plugins listed-but-inactive (bisect escape hatch; they can still be enabled live one at a time).
 
 ## Known limitations (accepted, watch items)
 

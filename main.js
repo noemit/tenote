@@ -181,7 +181,11 @@ function bootstrap() {
 
   seedExamplePlugins();
   host.discover();
-  host.activateAll();
+  // TENOTE_NO_PLUGINS=1 leaves every plugin listed-but-inactive for the
+  // session — a support escape hatch for bisecting a misbehaving plugin
+  // (they can still be turned on live, one at a time, from Settings).
+  if (process.env.TENOTE_NO_PLUGINS) logger.warn('plugins', 'TENOTE_NO_PLUGINS=1 — skipping activation');
+  else host.activateAll();
 
   startSocketServer();
   createWindow();
@@ -198,7 +202,10 @@ function bootstrap() {
     logger.info('app', 'first run — showing window to greet');
     setTimeout(showWindow, 300);
   }
-  maybeSweepImages();
+  // Delay the daily image sweep well past first paint — it reads every note,
+  // which can trigger downloads in an iCloud-synced folder and must not stall
+  // startup (it runs async, off the event loop, once it does run).
+  setTimeout(maybeSweepImages, 30000);
 }
 
 // ---- window ----------------------------------------------------------------
@@ -870,8 +877,16 @@ function handleHostService(method, args) {
 }
 
 function wrapIpc(name, payload, fn) {
-  try { return fn(payload); }
-  catch (err) {
+  // Handlers may be sync or async — normalize to a promise so async file I/O
+  // never has to block the event loop to fit this wrapper.
+  try {
+    return Promise.resolve()
+      .then(() => fn(payload))
+      .catch((err) => {
+        logger.error('ipc', name + ' failed', { error: err && err.stack || String(err) });
+        return { ok: false, error: String(err && err.message || err) };
+      });
+  } catch (err) {
     logger.error('ipc', name + ' failed', { error: err && err.stack || String(err) });
     return { ok: false, error: String(err && err.message || err) };
   }
@@ -969,36 +984,38 @@ function formatTimestamp(d) {
 
 // Reads only the first `bytes` of a file — enough for frontmatter + title +
 // 140-char snippet, and dramatically cheaper than full reads for large folders.
-function readFileHead(file, bytes) {
-  let fd;
+// Async on purpose: in an iCloud-synced folder, reading an evicted (cloud-only)
+// file blocks until it downloads — that must stall a worker thread, never the
+// main event loop (a blocked loop freezes EVERY IPC: settings, chips, toggles).
+async function readFileHead(file, bytes) {
+  let fh;
   try {
-    fd = fs.openSync(file, 'r');
+    fh = await fs.promises.open(file, 'r');
     const buf = Buffer.alloc(bytes);
-    const n = fs.readSync(fd, buf, 0, bytes, 0);
-    return buf.toString('utf8', 0, n);
+    const { bytesRead } = await fh.read(buf, 0, bytes, 0);
+    return buf.toString('utf8', 0, bytesRead);
   } catch (e) { return ''; }
-  finally { try { if (fd !== undefined) fs.closeSync(fd); } catch (e) { /* ignore */ } }
+  finally { try { if (fh) await fh.close(); } catch (e) { /* ignore */ } }
 }
 
-function listNotes() {
+async function listNotes() {
   try {
     if (!fs.existsSync(NOTES_DIR)) return [];
-    const notes = fs.readdirSync(NOTES_DIR)
-      .filter((f) => f.endsWith('.md'))
-      .map((f) => {
-        try {
-          const raw = readFileHead(path.join(NOTES_DIR, f), 2048);
-          const { meta, body } = parseNote(raw);
-          return {
-            id: meta.id || f.replace(/\.md$/, ''),
-            created: meta.created || null,
-            updated: meta.updated || null,
-            tags: meta.tags || [],
-            title: titleOf(body),
-            snippet: snippetOf(body),
-          };
-        } catch (e) { return null; }
-      })
+    const files = (await fs.promises.readdir(NOTES_DIR)).filter((f) => f.endsWith('.md'));
+    const notes = (await Promise.all(files.map(async (f) => {
+      try {
+        const raw = await readFileHead(path.join(NOTES_DIR, f), 2048);
+        const { meta, body } = parseNote(raw);
+        return {
+          id: meta.id || f.replace(/\.md$/, ''),
+          created: meta.created || null,
+          updated: meta.updated || null,
+          tags: meta.tags || [],
+          title: titleOf(body),
+          snippet: snippetOf(body),
+        };
+      } catch (e) { return null; }
+    })))
       .filter(Boolean)
       .sort((a, b) => String(b.updated || '').localeCompare(String(a.updated || '')));
     logger.debug('note', 'listed', { count: notes.length });
@@ -1009,11 +1026,11 @@ function listNotes() {
   }
 }
 
-function readNote(id) {
+async function readNote(id) {
   const clean = safeId(id);
   if (!clean) return null;
   try {
-    const raw = fs.readFileSync(noteFile(clean), 'utf8');
+    const raw = await fs.promises.readFile(noteFile(clean), 'utf8');
     const { meta, body } = parseNote(raw);
     return { id: clean, created: meta.created, updated: meta.updated, tags: meta.tags || [], body };
   } catch (e) {
@@ -1024,29 +1041,29 @@ function readNote(id) {
 
 // The 3 most recent notes, cheap: sorts by file mtime (no full scan needed).
 // Returns { notes, total } — total drives the "+N more" overflow card.
-function recentNotes(limit) {
+async function recentNotes(limit) {
   const n = Math.max(1, Math.min(parseInt(limit, 10) || 3, 8));
   try {
     if (!fs.existsSync(NOTES_DIR)) return { notes: [], total: 0 };
-    const files = fs.readdirSync(NOTES_DIR).filter((f) => f.endsWith('.md'));
-    const notes = files
-      .map((f) => ({ f, m: fs.statSync(path.join(NOTES_DIR, f)).mtimeMs }))
-      .sort((a, b) => b.m - a.m)
-      .slice(0, n)
-      .map(({ f }) => {
-        try {
-          const raw = fs.readFileSync(path.join(NOTES_DIR, f), 'utf8');
-          const { meta, body } = parseNote(raw);
-          return {
-            id: meta.id || f.replace(/\.md$/, ''),
-            updated: meta.updated || null,
-            title: titleOf(body),
-            snippet: snippetOf(body),
-            tags: meta.tags || [],
-          };
-        } catch (e) { return null; }
-      })
-      .filter(Boolean);
+    const files = (await fs.promises.readdir(NOTES_DIR)).filter((f) => f.endsWith('.md'));
+    const stats = await Promise.all(files.map(async (f) => {
+      try { return { f, m: (await fs.promises.stat(path.join(NOTES_DIR, f))).mtimeMs }; }
+      catch (e) { return null; }
+    }));
+    const top = stats.filter(Boolean).sort((a, b) => b.m - a.m).slice(0, n);
+    const notes = (await Promise.all(top.map(async ({ f }) => {
+      try {
+        const raw = await fs.promises.readFile(path.join(NOTES_DIR, f), 'utf8');
+        const { meta, body } = parseNote(raw);
+        return {
+          id: meta.id || f.replace(/\.md$/, ''),
+          updated: meta.updated || null,
+          title: titleOf(body),
+          snippet: snippetOf(body),
+          tags: meta.tags || [],
+        };
+      } catch (e) { return null; }
+    }))).filter(Boolean);
     return { notes, total: files.length };
   } catch (e) {
     logger.error('note', 'recent failed', { error: e.message });
@@ -1068,24 +1085,25 @@ const OWN_IMAGE_RE = /^img-[a-z0-9]+-[a-z0-9]{4}\.(png|jpe?g|gif|webp)$/i;
 // note that references an image may simply not have arrived on this machine yet.
 const SWEEP_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
-function sweepOrphanImages() {
+async function sweepOrphanImages() {
   const imgDir = path.join(NOTES_DIR, 'images');
   if (!fs.existsSync(imgDir)) return;
   const refs = new Set();
-  for (const f of fs.readdirSync(NOTES_DIR).filter((f) => f.endsWith('.md'))) {
+  const noteFiles = (await fs.promises.readdir(NOTES_DIR)).filter((f) => f.endsWith('.md'));
+  await Promise.all(noteFiles.map(async (f) => {
     try {
-      const raw = fs.readFileSync(path.join(NOTES_DIR, f), 'utf8');
+      const raw = await fs.promises.readFile(path.join(NOTES_DIR, f), 'utf8');
       for (const m of raw.matchAll(/!\[[^\]]*\]\((images\/[^)\s]+)\)/g)) refs.add(m[1]);
     } catch (e) { /* ignore unreadable notes */ }
-  }
+  }));
   let removed = 0;
-  for (const f of fs.readdirSync(imgDir)) {
+  for (const f of await fs.promises.readdir(imgDir)) {
     if (!OWN_IMAGE_RE.test(f)) continue;
     if (refs.has('images/' + f)) continue;
     try {
       const p = path.join(imgDir, f);
-      if (Date.now() - fs.statSync(p).mtimeMs < SWEEP_MIN_AGE_MS) continue;
-      fs.unlinkSync(p);
+      if (Date.now() - (await fs.promises.stat(p)).mtimeMs < SWEEP_MIN_AGE_MS) continue;
+      await fs.promises.unlink(p);
       removed++;
     } catch (e) { /* ignore */ }
   }
@@ -1097,7 +1115,8 @@ function maybeSweepImages() {
   if (Date.now() - (settings.lastImageSweep || 0) < DAY_MS) return;
   settings.lastImageSweep = Date.now();
   saveSettings();
-  try { sweepOrphanImages(); } catch (e) { logger.warn('note', 'image sweep failed', { error: e.message }); }
+  sweepOrphanImages()
+    .catch((e) => logger.warn('note', 'image sweep failed', { error: e.message }));
 }
 
 function attachImage(payload) {
