@@ -186,13 +186,37 @@
     requestAnimationFrame(relayoutChips);
     return {
       update(label, variant) {
-        if (label != null) el.textContent = String(label);
-        if (variant) el.classList.toggle('accent', variant === 'accent');
-        el.classList.remove('ovf'); // re-measure the new label's width
+        // No-op guard: plugins like typing-speed poke their chip on a timer;
+        // a redundant update must not schedule a relayout (constant UI churn).
+        let dirty = false;
+        if (label != null) {
+          const next = String(label);
+          if (el.textContent !== next) {
+            el.textContent = next;
+            el.classList.remove('ovf'); // re-measure the new label's width
+            dirty = true;
+          }
+        }
+        if (variant) {
+          const on = variant === 'accent';
+          if (el.classList.contains('accent') !== on) {
+            el.classList.toggle('accent', on);
+            dirty = true; // themes may style .accent with different metrics
+          }
+        }
+        if (dirty) requestAnimationFrame(relayoutChips);
+      },
+      show() {
+        if (!el.classList.contains('gone')) return; // already visible
+        el.classList.remove('gone');
         requestAnimationFrame(relayoutChips);
       },
-      show() { el.classList.remove('gone'); requestAnimationFrame(relayoutChips); },
-      hide() { el.classList.add('gone'); hidePopIf(el); requestAnimationFrame(relayoutChips); },
+      hide() {
+        if (el.classList.contains('gone')) return; // already hidden
+        el.classList.add('gone');
+        hidePopIf(el);
+        requestAnimationFrame(relayoutChips);
+      },
       remove() {
         el.remove();
         state.chips = state.chips.filter((c) => c._id !== id);
