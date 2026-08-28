@@ -517,6 +517,22 @@ body {
 }
 .plug-name em { font-style: normal; color: var(--muted); font-size: 11px; }
 .plug-gear { border: 0; background: transparent; cursor: pointer; color: var(--muted); font-size: 13px; padding: 2px 4px; }
+.plug-info {
+  border: 1px solid var(--border); background: transparent; cursor: pointer;
+  color: var(--muted); font-size: 9.5px; font-weight: 700; font-style: italic; font-family: Georgia, serif;
+  width: 15px; height: 15px; border-radius: 50%; padding: 0; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+}
+.plug-info:hover { color: var(--text); border-color: var(--muted); }
+.pmi-desc { margin: 4px 0 8px; font-size: 12.5px; line-height: 1.55; color: var(--text); white-space: pre-wrap; }
+.pmi-readme {
+  margin: 8px 0 0; padding: 8px 10px; background: var(--bg-solid);
+  border: 1px solid var(--border); border-radius: 8px;
+  font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+  max-height: 260px; overflow-y: auto; font-family: inherit;
+}
+.pmi-meta { margin-top: 8px; font-size: 11px; color: var(--muted); }
+.pmi-loading { color: var(--muted); font-size: 12px; padding: 8px 0; }
 .plug-gear:hover { color: var(--text); }
 .plug-toggle { position: relative; display: inline-block; width: 30px; height: 17px; flex: 0 0 auto; }
 .plug-toggle input { opacity: 0; width: 100%; height: 100%; position: absolute; margin: 0; cursor: pointer; }

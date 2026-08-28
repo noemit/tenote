@@ -334,6 +334,10 @@
   }
 
   // ---- plugin settings UI ---------------------------------------------------
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   function renderPluginsSection() {
     const box = $('#set-plugins');
     if (!box) return;
@@ -350,6 +354,7 @@
           : '';
         row.innerHTML =
           `${dot}<span class="plug-name" title="${p.name}">${p.name}${p.version ? ' <em>' + p.version + '</em>' : ''}</span>` +
+          `<button class="plug-info" data-info="${p.name}" title="What does this plugin do?">i</button>` +
           gear +
           `<label class="plug-toggle"><input type="checkbox" data-plug="${p.name}" ${p.state !== 'disabled' ? 'checked' : ''}/><span></span></label>`;
         box.appendChild(row);
@@ -402,6 +407,8 @@
         setStatus('Drop a plugin folder in, then restart Tenote');
         return;
       }
+      const infoBtn = e.target.closest('[data-info]');
+      if (infoBtn) { openPluginInfo(infoBtn.dataset.info); return; }
       const gear = e.target.closest('[data-gear]');
       if (!gear) return;
       const name = gear.dataset.gear;
@@ -429,6 +436,7 @@
 
   function openModal(name, fields, values) {
     const modal = $('#plugin-modal');
+    delete modal.dataset.infoToken; // settings form replaces any pending info view
     $('#plugin-modal-title').textContent = name;
     const body = $('#plugin-modal-body');
     body.innerHTML = fields.map((f) => fieldHtml(f, values[f.key])).join('');
@@ -444,9 +452,42 @@
     $('#btn-plugin-modal-close').onclick = closeModal;
   }
 
+  // The ⓘ button per plugin row: reuses the modal shell to show the plugin's
+  // description (plugin.json) plus its README when one ships in the folder.
+  async function openPluginInfo(name) {
+    const modal = $('#plugin-modal');
+    const titleEl = $('#plugin-modal-title');
+    const body = $('#plugin-modal-body');
+    if (!modal || !titleEl || !body) return;
+    titleEl.textContent = name;
+    body.onchange = null;
+    body.innerHTML = '<div class="pmi-loading">Loading…</div>';
+    $('#btn-plugin-modal-close').onclick = closeModal;
+    modal.dataset.infoToken = name;
+    modal.classList.remove('hidden');
+    const info = await hostCall('pluginInfo', { name });
+    // The modal may have been closed or reused (settings form, another plugin)
+    // while the call was in flight — don't clobber it with a stale answer.
+    if (modal.classList.contains('hidden') || modal.dataset.infoToken !== name) return;
+    if (!info) { body.innerHTML = '<div class="pmi-loading">Could not load plugin info.</div>'; return; }
+    const parts = [];
+    if (info.description) parts.push(`<p class="pmi-desc">${escapeHtml(info.description)}</p>`);
+    if (info.readme) parts.push(`<pre class="pmi-readme">${escapeHtml(info.readme)}</pre>`);
+    if (!info.description && !info.readme) {
+      parts.push('<p class="pmi-desc">This plugin didn’t provide a description. Peek at its folder (“Open plugins folder”) to see what it does.</p>');
+    }
+    const meta = [];
+    if (info.version) meta.push('v' + info.version);
+    if (info.layer) meta.push(info.layer);
+    if (info.state === 'failed' && info.error) meta.push('error: ' + info.error);
+    if (meta.length) parts.push(`<div class="pmi-meta">${escapeHtml(meta.join(' · '))}</div>`);
+    body.innerHTML = parts.join('');
+  }
+
   function closeModal() {
     const modal = $('#plugin-modal');
     modal.classList.add('hidden');
+    delete modal.dataset.infoToken;
     $('#plugin-modal-body').onchange = null;
   }
 

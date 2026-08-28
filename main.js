@@ -842,6 +842,35 @@ function handleHostService(method, args) {
       rebuildTrayMenu();
       return { ok, active: !!(rec && rec.state === 'ok') };
     }
+    case 'pluginInfo': {
+      const name = String(a.name);
+      const rec = host.getRecord(name);
+      if (!rec) throw new Error('unknown plugin: ' + name);
+      // Async so a slow/synced plugin dir never blocks the loop. The README is
+      // optional bonus content — the plugin.json description is the baseline.
+      return (async () => {
+        let readme = null;
+        try {
+          if (rec.dir && fs.statSync(rec.dir).isDirectory()) {
+            for (const fn of ['README.md', 'readme.md', 'README.txt', 'README']) {
+              try {
+                readme = (await fs.promises.readFile(path.join(rec.dir, fn), 'utf8')).slice(0, 32768);
+                break;
+              } catch (e) { /* try the next filename */ }
+            }
+          }
+        } catch (e) { /* no readable dir (bare-file plugin) */ }
+        return {
+          name: rec.name,
+          version: rec.version,
+          layer: rec.layer,
+          state: rec.state,
+          error: rec.error || null,
+          description: rec.description || null,
+          readme,
+        };
+      })();
+    }
     case 'openPluginsFolder': {
       try { fs.mkdirSync(PLUGINS_USER_DIR, { recursive: true }); } catch (e) { /* ignore */ }
       shell.openPath(PLUGINS_USER_DIR);
