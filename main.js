@@ -303,6 +303,34 @@ function stopResize() {
   resizeState = null;
 }
 
+// Manual topbar drag. The window has NO -webkit-app-region: drag anymore —
+// Chromium's drag region gives macOS a titlebar-like double-click target, and
+// on modern macOS that "Fill"/zoom path fires neither 'maximize' nor
+// 'enter-full-screen', so our guards never saw it. No drag region, no
+// double-click behavior; dragging is just this cursor-delta poll instead.
+let dragTick = null;
+let dragState = null;
+
+function startDrag() {
+  if (!win || win.isDestroyed()) return;
+  stopDrag();
+  const b = win.getBounds();
+  dragState = { start: screen.getCursorScreenPoint(), x: b.x, y: b.y };
+  dragTick = setInterval(() => {
+    if (!win || win.isDestroyed() || !dragState) { stopDrag(); return; }
+    const p = screen.getCursorScreenPoint();
+    const dx = p.x - dragState.start.x;
+    const dy = p.y - dragState.start.y;
+    if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return; // dead zone: plain clicks don't jiggle
+    win.setPosition(dragState.x + dx, dragState.y + dy);
+  }, 16);
+}
+
+function stopDrag() {
+  if (dragTick) { clearInterval(dragTick); dragTick = null; }
+  dragState = null;
+}
+
 let menuGrowFrom = null;
 
 function ensureMenuSize(opts) {
@@ -398,6 +426,7 @@ function showWindow() {
 
 function hideWindow() {
   stopResize();
+  stopDrag();
   // Note: menuGrowFrom intentionally survives hide — the renderer closes any
   // open popovers on next show and restores the pre-grow window size then.
   if (win) win.hide();
@@ -749,6 +778,8 @@ function setupIpc() {
   ipcMain.handle('window:hide', () => { hideWindow(); return true; });
   ipcMain.handle('window:resizeStart', (e, edge) => { startResize(edge); return true; });
   ipcMain.handle('window:resizeEnd', () => { stopResize(); return true; });
+  ipcMain.handle('window:dragStart', () => { startDrag(); return true; });
+  ipcMain.handle('window:dragEnd', () => { stopDrag(); return true; });
   ipcMain.handle('window:ensureSize', (e, opts) => ensureMenuSize(opts));
   ipcMain.handle('state:get', () => ({
     notesDir: NOTES_DIR,

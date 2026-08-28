@@ -653,8 +653,23 @@
     el.addEventListener('pointerup', () => jot.resizeEnd());
     el.addEventListener('pointercancel', () => jot.resizeEnd());
   });
-  window.addEventListener('mouseup', () => jot.resizeEnd());
-  window.addEventListener('blur', () => jot.resizeEnd());
+  window.addEventListener('mouseup', () => { jot.resizeEnd(); jot.dragEnd(); });
+  window.addEventListener('blur', () => { jot.resizeEnd(); jot.dragEnd(); });
+
+  // Window dragging is manual (pointer capture + main-process cursor poll) —
+  // the topbar deliberately has no -webkit-app-region: drag, because that
+  // gives macOS a titlebar double-click target (zoom/Fill) we can't fully
+  // guard against. Buttons/chips/inputs inside the bar stay clickable.
+  const topbar = $('#topbar');
+  topbar.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('button, input, select, a, [contenteditable]')) return;
+    e.preventDefault();
+    try { topbar.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    jot.dragStart();
+  });
+  topbar.addEventListener('pointerup', () => jot.dragEnd());
+  topbar.addEventListener('pointercancel', () => jot.dragEnd());
 
   $('#btn-new').addEventListener('click', () => { flushSave(); newNote(); });
   $('#btn-close').addEventListener('click', () => { flushSave(); jot.hide(); });
