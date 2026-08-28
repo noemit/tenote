@@ -1,0 +1,8 @@
+{
+  "name": "bullet-journal",
+  "version": "1.0.0",
+  "description": "Bullet Journal theme — dot-grid paper and a fuzzy sage highlighter on bold words.",
+  "themes": [
+    { "id": "bullet-journal", "name": "Bullet Journal", "css": "bullet-journal.css", "swatch": ["#f6f3ea", "#a9bf97"] }
+  ]
+}
