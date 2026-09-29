@@ -22,9 +22,9 @@ later is possible if branding matters.
 
 ## What's already done
 
-- `package.json`: removed `"identity": null`, added `"hardenedRuntime": true` and
-  `"notarize": true` to the `mac` build config. electron-builder will auto-select the
-  "Developer ID Application" identity from the login keychain and use notarytool.
+- `packaging/build-app.sh --dist` signs with `SIGN_IDENTITY` (hardened runtime,
+  `packaging/Tenote.entitlements`), notarizes with notarytool when `APPLE_ID` is set,
+  staples, and writes `dist/Tenote-<version>-universal.{zip,dmg}`.
 - `README.md`: documents the `xattr -dr com.apple.quarantine` workaround and the
   "Open Anyway" route for the current unsigned release. Keep this until a notarized
   release is out.
@@ -54,7 +54,7 @@ Then paste the contents of `certificate.base64.txt` into the `APPLE_DEVELOPER_ID
 
 ## Releasing a new version
 
-1. Bump the version in `package.json` (and run `npm install` to update `package-lock.json`).
+1. Bump the version in `VERSION`.
 2. Commit and push the version bump to `main`.
 3. Create and push a tag:
    ```sh
@@ -83,13 +83,13 @@ If you prefer to build on your own Mac instead of GitHub Actions:
    export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
    export APPLE_TEAM_ID="ABCDE12345"
    ```
-5. **Build:** `npm run dist`. Notarization adds a few minutes (upload to Apple, wait,
+5. **Build:** `SIGN_IDENTITY="Developer ID Application: …" packaging/build-app.sh --dist`. Notarization adds a few minutes (upload to Apple, wait,
    staple the ticket to the dmg).
 
 ## Possible follow-ups
 
 - If the signed app crashes while the unsigned one doesn't, revisit hardened-runtime
-  entitlements (electron-builder defaults should cover Electron's JIT needs).
+  entitlements in `packaging/Tenote.entitlements`.
 - For CI later, prefer an App Store Connect API key (`APPLE_API_KEY`,
   `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`) over the app-specific password.
 - After the first notarized release: verify on a clean machine that the dmg opens
