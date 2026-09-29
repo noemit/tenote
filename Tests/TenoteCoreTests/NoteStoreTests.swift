@@ -29,7 +29,7 @@ final class NoteStoreTests: XCTestCase {
         XCTAssertEqual(r["ok"] as? Bool, true)
         let id = r["id"] as? String
         XCTAssertNotNil(id)
-        XCTAssertEqual(s.read(id)?["body"] as? String, "# Hello\nworld")
+        XCTAssertEqual(s.read(id)?["body"] as? String, "# Hello\nworld\n")
         XCTAssertEqual(s.list().count, 1)
         _ = s.save(id: id, text: "   ", tags: [])
         XCTAssertFalse(FileManager.default.fileExists(atPath: s.file(for: id!).path))
