@@ -148,6 +148,29 @@ socket (`scripts/tenotectl.js`).
 | `TENOTE_DEV_DIR` | Lets tenotectl start the app with `npm start` in this folder |
 | `TENOTE_APP_PATH` | Path to a packaged Tenote.app for tenotectl to launch |
 
+## Tenote Native (Swift, experimental)
+
+An alternative build of the same app, written in Swift/AppKit instead of
+Electron. It lives alongside the Electron app in this repo (`Package.swift`,
+`Sources/`, `Tests/`, `packaging/`) and reuses `renderer/`, `plugins/` and
+`examples/` unchanged, so the UI, notes folder, settings and JS plugins are the
+same. It ships as **Tenote Native.app** (`com.tenote.native`) on `native-v*`
+prerelease tags.
+
+Both apps share `~/Documents/Tenote Notes`, the settings file, the socket and the
+⌥. hotkey, so **run one at a time** (quit one before opening the other).
+
+| Command | Does |
+| --- | --- |
+| `swift run Tenote` | Run it from the checkout (needs macOS 13.3+, Xcode 15+) |
+| `swift test` | Core test suite (notes, settings, plugin host) |
+| `packaging/build-app.sh` | Build `dist/Tenote Native.app` (ad-hoc signed) |
+| `packaging/build-app.sh --dist` | Also sign (`SIGN_IDENTITY`), notarize, and build `.zip` + `.dmg` |
+| `scripts/setup-skhd.sh` | Point skhd's ⌥. at the native `tenotectl` |
+
+Plugins run in JavaScriptCore with Node-style shims for `fs`, `path`, `os`,
+`child_process`, `util`, `events` and `Buffer`.
+
 ## Roadmap
 
 - iPhone app (soon)
