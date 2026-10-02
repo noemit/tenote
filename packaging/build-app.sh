@@ -34,12 +34,13 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 rm -rf "$ICONSET"
 
 IDENTITY="${SIGN_IDENTITY:--}"
-codesign --force --options runtime --timestamp=none --entitlements packaging/Tenote.entitlements \
-  --sign "$IDENTITY" "$APP/Contents/MacOS/tenotectl"
 if [[ "$IDENTITY" == "-" ]]; then
   codesign --force --deep --entitlements packaging/Tenote.entitlements --sign - "$APP"
 else
+  codesign --force --options runtime --timestamp --entitlements packaging/Tenote.entitlements \
+    --sign "$IDENTITY" "$APP/Contents/MacOS/tenotectl"
   codesign --force --options runtime --timestamp --entitlements packaging/Tenote.entitlements --sign "$IDENTITY" "$APP"
+  codesign --verify --strict --deep --verbose=2 "$APP"
 fi
 echo "built $APP ($VERSION)"
 
