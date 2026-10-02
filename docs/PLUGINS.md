@@ -5,8 +5,7 @@ A Tenote plugin is a folder (or single `.js` file) dropped into
 required for JS-only plugins, no dependencies.
 
 **Trust model, stated plainly:** a plugin is code running with your user's full
-privileges — JavaScriptCore in the app process (with Node-style `fs`, `path`,
-`os`, `child_process`, `util`, `events` and `Buffer` shims), the page in the note card.
+privileges — Node and Electron in the main process, the page in the note card.
 There is no sandbox and no permission prompt. Installing a plugin means running
 that author's code on your machine. Read it or trust it.
 

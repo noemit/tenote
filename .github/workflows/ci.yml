@@ -6,7 +6,19 @@ on:
   pull_request:
 
 jobs:
-  build-and-test:
+  electron:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+
+  native:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -20,5 +32,5 @@ jobs:
         run: packaging/build-app.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: Tenote.app
-          path: dist/Tenote.app
+          name: Tenote-Native.app
+          path: dist/Tenote Native.app

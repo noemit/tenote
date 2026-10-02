@@ -13,7 +13,7 @@ on:
 
 jobs:
   release:
-    runs-on: macos-15
+    runs-on: macos-latest
     permissions:
       contents: write
     steps:
@@ -22,31 +22,28 @@ jobs:
         with:
           ref: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
 
-      - name: Test
-        run: swift test
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
 
-      - name: Import signing certificate
-        env:
-          CERT_P12: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE }}
-          CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run checks and tests
         run: |
-          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
-          security create-keychain -p "" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "" "$KEYCHAIN"
-          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
-          security set-key-partition-list -S apple-tool:,apple: -k "" "$KEYCHAIN"
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
-          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -1)
-          echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          npm run check
+          npm test
 
       - name: Build, sign and notarize
         env:
+          CSC_LINK: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: packaging/build-app.sh --dist
+        run: npm run dist
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

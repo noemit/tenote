@@ -50,29 +50,34 @@ once in Terminal, or just grab the latest release.)
 
 ### Option B: build from source
 
-You need macOS 13.3+ and Xcode 15+ (or the Swift 5.9+ toolchain). Then:
+You need [Node.js](https://nodejs.org) (22 or newer) and git. Then:
 
 ```bash
 git clone https://github.com/noemit/tenote.git
 cd tenote
-packaging/build-app.sh      # builds dist/Tenote.app
-open dist/Tenote.app
+npm install
+npm start
 ```
 
-For day-to-day hacking, `swift run Tenote` runs straight from the checkout.
-
-The ⌥. hotkey is built in, so you can stop here. **Optional:** bind ⌥. through
-[skhd](https://github.com/koekeishiya/skhd) so it works **even when Tenote isn't
-running yet** (it starts the app for you):
+The ⌥. hotkey is built in, so you can stop here. **Recommended:** run one more
+command to set up [skhd](https://github.com/koekeishiya/skhd), a tiny free hotkey
+helper. With it, ⌥. works **even when Tenote isn't running yet** (it starts the
+app for you):
 
 ```bash
-scripts/setup-skhd.sh
+npm run setup
 ```
 
-It installs skhd with Homebrew if needed, adds **one line** to `~/.skhdrc`
-pointing ⌥. at `Tenote.app/Contents/MacOS/tenotectl`, and starts skhd. macOS
-then asks for one permission: **System Settings → Privacy & Security →
-Accessibility → turn on "skhd".**
+What `npm run setup` does (and nothing else):
+
+1. Checks if you have skhd; if not, installs it with Homebrew
+   (or tells you what to do if you don't have Homebrew either).
+2. Adds **one line** to `~/.skhdrc` pointing ⌥. at Tenote.
+3. Starts skhd.
+
+Afterwards macOS asks for **one permission**. skhd needs it to see your key
+presses: **System Settings → Privacy & Security → Accessibility → turn on "skhd".**
+Then press ⌥. anywhere and a note card appears.
 
 ## Your notes
 
@@ -103,8 +108,9 @@ Drive and your notes sync themselves. Pasted images live in the `images/` subfol
 
 ## Uninstall
 
-Quit from the menu-bar icon, then drag Tenote out of Applications. Your notes stay in `~/Documents/Tenote Notes`. Delete that folder
-too if you don't want them. If you ran `scripts/setup-skhd.sh`: remove the Tenote lines
+Quit from the menu-bar icon, then drag Tenote out of Applications (or stop
+`npm start`). Your notes stay in `~/Documents/Tenote Notes`. Delete that folder
+too if you don't want them. If you ran `npm run setup`: remove the Tenote lines
 from `~/.skhdrc`, then run `skhd --stop-service`.
 
 ## Troubleshooting
@@ -119,23 +125,19 @@ from `~/.skhdrc`, then run `skhd --stop-service`.
 
 ## For developers
 
-A native Swift/AppKit app, **zero third-party dependencies**.
-
-| Path | What |
-| --- | --- |
-| `Sources/TenoteCore` | Notes, settings, logger, plugin host, JavaScriptCore runtime, socket, accelerators |
-| `Sources/Tenote` | The app: floating card (`WKWebView`), menu-bar item, global hotkeys, IPC bridge |
-| `Sources/tenotectl` | CLI used by skhd; talks to the app over a Unix socket |
-| `renderer/` | The card's UI (HTML/CSS/JS), served to the web view via `tenote://` |
-| `plugins/`, `examples/` | Builtin and example plugins (unchanged JS plugin API) |
+Plain Node + Electron, **zero runtime dependencies**. `main.js` is the whole
+backend; `renderer/` is the whole frontend. The renderer talks to the main process
+over a small IPC bridge (`preload.js`), and skhd talks to the app over a tiny Unix
+socket (`scripts/tenotectl.js`).
 
 | Command | Does |
 | --- | --- |
-| `swift run Tenote` | Run the app from the checkout |
-| `swift test` | Run the core test suite |
-| `packaging/build-app.sh` | Build `dist/Tenote.app` (ad-hoc signed) |
-| `packaging/build-app.sh --dist` | Also sign (`SIGN_IDENTITY`), notarize and build `.zip` + `.dmg` |
-| `tail -f ~/Library/Logs/Tenote/main.log` | Follow the log |
+| `npm start` | Run the app (first run downloads the Electron binary) |
+| `npm run setup` | Install & configure skhd for the ⌥. hotkey |
+| `npm run logs` | Tail the log (`~/Library/Logs/Tenote/main.log`) |
+| `npm run check` | Syntax-check all JS |
+| `npm run icons` | Regenerate tray + app icons (pure-Node PNG encoder) |
+| `npm run dist` | Build `dist/Tenote-*.dmg` + `.zip` with electron-builder |
 
 | Env var | Effect |
 | --- | --- |
@@ -143,9 +145,31 @@ A native Swift/AppKit app, **zero third-party dependencies**.
 | `TENOTE_LOG_LEVEL` | `debug` for verbose logging |
 | `TENOTE_LOG_DIR` | Custom log directory |
 | `TENOTE_SOCKET` | Custom socket path (must match in tenotectl and the app) |
-| `TENOTE_PLUGINS` | Colon-separated extra plugin folders/files to load |
-| `TENOTE_NO_PLUGINS` | `1` skips plugin activation for the session |
+| `TENOTE_DEV_DIR` | Lets tenotectl start the app with `npm start` in this folder |
 | `TENOTE_APP_PATH` | Path to a packaged Tenote.app for tenotectl to launch |
+
+## Tenote Native (Swift, experimental)
+
+An alternative build of the same app, written in Swift/AppKit instead of
+Electron. It lives alongside the Electron app in this repo (`Package.swift`,
+`Sources/`, `Tests/`, `packaging/`) and reuses `renderer/`, `plugins/` and
+`examples/` unchanged, so the UI, notes folder, settings and JS plugins are the
+same. It ships as **Tenote Native.app** (`com.tenote.native`) on `native-v*`
+prerelease tags.
+
+Both apps share `~/Documents/Tenote Notes`, the settings file, the socket and the
+⌥. hotkey, so **run one at a time** (quit one before opening the other).
+
+| Command | Does |
+| --- | --- |
+| `swift run Tenote` | Run it from the checkout (needs macOS 13.3+, Xcode 15+) |
+| `swift test` | Core test suite (notes, settings, plugin host) |
+| `packaging/build-app.sh` | Build `dist/Tenote Native.app` (ad-hoc signed) |
+| `packaging/build-app.sh --dist` | Also sign (`SIGN_IDENTITY`), notarize, and build `.zip` + `.dmg` |
+| `scripts/setup-skhd.sh` | Point skhd's ⌥. at the native `tenotectl` |
+
+Plugins run in JavaScriptCore with Node-style shims for `fs`, `path`, `os`,
+`child_process`, `util`, `events` and `Buffer`.
 
 ## Roadmap
 

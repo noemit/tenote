@@ -2,7 +2,7 @@
 # Optional: bind ⌥. through skhd so the hotkey also launches Tenote when it
 # isn't running. Safe to re-run; it never duplicates the binding.
 set -euo pipefail
-CTL="${TENOTECTL:-/Applications/Tenote.app/Contents/MacOS/tenotectl}"
+CTL="${TENOTECTL:-/Applications/Tenote Native.app/Contents/MacOS/tenotectl}"
 [[ -x "$CTL" ]] || { echo "tenotectl not found at $CTL (set TENOTECTL=…)"; exit 1; }
 if ! command -v skhd >/dev/null; then
   command -v brew >/dev/null || { echo "Install Homebrew (https://brew.sh) or skip this — Tenote's built-in ⌥. works without skhd."; exit 1; }

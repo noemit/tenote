@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds dist/Tenote.app (universal) from the Swift package, and optionally
+# Builds dist/Tenote Native.app (universal) from the Swift package, and optionally
 # signs, notarizes and zips/dmgs it.
 #
 #   packaging/build-app.sh                 # unsigned .app (ad-hoc signed)
@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 
 VERSION="$(tr -d '[:space:]' < VERSION)"
 DIST=dist
-APP="$DIST/Tenote.app"
+APP="$DIST/Tenote Native.app"
 DO_DIST=0
 [[ "${1:-}" == "--dist" ]] && DO_DIST=1
 
@@ -45,8 +45,8 @@ echo "built $APP ($VERSION)"
 
 [[ $DO_DIST == 1 ]] || exit 0
 
-ZIP="$DIST/Tenote-$VERSION-universal.zip"
-DMG="$DIST/Tenote-$VERSION-universal.dmg"
+ZIP="$DIST/TenoteNative-$VERSION-universal.zip"
+DMG="$DIST/TenoteNative-$VERSION-universal.dmg"
 ditto -c -k --keepParent "$APP" "$ZIP"
 if [[ -n "${APPLE_ID:-}" && "$IDENTITY" != "-" ]]; then
   xcrun notarytool submit "$ZIP" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" \
@@ -57,7 +57,7 @@ fi
 STAGE="$DIST/dmg"
 rm -rf "$STAGE" && mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/" && ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname Tenote -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+hdiutil create -volname "Tenote Native" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 rm -rf "$STAGE"
 if [[ "$IDENTITY" != "-" ]]; then
   codesign --force --timestamp --sign "$IDENTITY" "$DMG"

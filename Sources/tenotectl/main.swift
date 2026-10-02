@@ -3,10 +3,10 @@ import TenoteCore
 
 // tenotectl — control Tenote from the command line / skhd.
 //
-//   ~/.skhdrc:  period - alt : /Applications/Tenote.app/Contents/MacOS/tenotectl toggle
+//   ~/.skhdrc:  period - alt : /Applications/Tenote Native.app/Contents/MacOS/tenotectl toggle
 //
 // Commands: toggle | show | hide | quit | status (plus any plugin command).
-// If the app isn't running it is launched (`open -a Tenote`, or TENOTE_APP_PATH)
+// If the app isn't running it is launched (`open -a "Tenote Native"`, or TENOTE_APP_PATH)
 // and the command retried. TENOTE_SOCKET overrides the socket path.
 
 let env = ProcessInfo.processInfo.environment
@@ -27,7 +27,7 @@ func launchApp() -> Bool {
     } else if let bundle = Bundle.main.bundleURL.pathExtension == "app" ? Bundle.main.bundleURL : nil {
         p.arguments = [bundle.path]
     } else {
-        p.arguments = ["-a", "Tenote"]
+        p.arguments = ["-a", "Tenote Native"]
     }
     do { try p.run() } catch { return false }
     p.waitUntilExit()
@@ -40,7 +40,7 @@ if cmd == "status" {
 }
 if send(cmd) { exit(0) }
 guard launchApp() else {
-    FileHandle.standardError.write(Data("could not launch the app — open Tenote.app manually\n".utf8))
+    FileHandle.standardError.write(Data("could not launch the app — open Tenote Native.app manually\n".utf8))
     exit(1)
 }
 for _ in 0..<8 {
