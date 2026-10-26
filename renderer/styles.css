@@ -23,6 +23,7 @@
   --pop: #fbf6ea;
   --tile: #efe4d0;
   --danger: #b03a2e;
+  --dots: rgba(122, 92, 55, 0.16);
 }
 
 /* ---- Themes live in plugins/builtin/core-themes/*.css (one per theme).
@@ -611,6 +612,12 @@ body {
 .hidden { display: none !important; }
 
 /* ---- composer ------------------------------------------------------------ */
+#composer {
+  /* dotted paper — the default Tenote surface */
+  background-image: radial-gradient(circle, var(--dots) 1.1px, transparent 1.4px);
+  background-size: 20px 20px;
+}
+
 #note {
   flex: 1;
   min-height: 0;

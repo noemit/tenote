@@ -24,4 +24,5 @@ body[data-theme="midnight"] {
 
 body[data-theme="midnight"] #app {
   box-shadow: 0 0 0 1px var(--app-border), var(--window-shadow);
+  --dots: rgba(190, 210, 240, 0.10);
 }

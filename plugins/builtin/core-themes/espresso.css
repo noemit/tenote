@@ -24,4 +24,5 @@ body[data-theme="espresso"] {
 
 body[data-theme="espresso"] #app {
   box-shadow: 0 0 0 1px var(--app-border), var(--window-shadow);
+  --dots: rgba(255, 238, 220, 0.11);
 }

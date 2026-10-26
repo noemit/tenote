@@ -20,4 +20,5 @@ body[data-theme="latte"] {
   --pop: #fbf6ea;
   --tile: #efe4d0;
   --danger: #b03a2e;
+  --dots: rgba(122, 92, 55, 0.16);
 }

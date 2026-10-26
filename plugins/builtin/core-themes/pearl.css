@@ -20,4 +20,5 @@ body[data-theme="pearl"] {
   --pop: #ffffff;
   --tile: #eef0f3;
   --danger: #b03a2e;
+  --dots: rgba(70, 85, 105, 0.13);
 }
