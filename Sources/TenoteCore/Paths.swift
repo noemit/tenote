@@ -3,7 +3,7 @@ import Foundation
 /// Every on-disk location Tenote uses. Kept identical to the Electron build so
 /// existing notes, settings and plugins carry over untouched.
 public struct TenotePaths {
-    public let notesDir: URL
+    public var notesDir: URL
     public let userDataDir: URL
     public let settingsFile: URL
     public let pluginsUserDir: URL
@@ -11,14 +11,15 @@ public struct TenotePaths {
     public let logDir: URL
     public let socketPath: String
 
-    public init(environment env: [String: String] = ProcessInfo.processInfo.environment) {
+    public init(environment env: [String: String] = ProcessInfo.processInfo.environment,
+                notesDirOverride: URL? = nil) {
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
         let documents = fm.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? home.appendingPathComponent("Documents")
         let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? home.appendingPathComponent("Library/Application Support")
-        notesDir = documents.appendingPathComponent("Tenote Notes", isDirectory: true)
+        notesDir = notesDirOverride ?? documents.appendingPathComponent("Tenote Notes", isDirectory: true)
         userDataDir = appSupport.appendingPathComponent("Tenote", isDirectory: true)
         settingsFile = userDataDir.appendingPathComponent("settings.json")
         pluginsUserDir = userDataDir.appendingPathComponent("plugins", isDirectory: true)
@@ -26,7 +27,12 @@ public struct TenotePaths {
         if let dir = env["TENOTE_LOG_DIR"], !dir.isEmpty {
             logDir = URL(fileURLWithPath: dir, isDirectory: true)
         } else {
+#if MAS
+            // App Sandbox: ~/Library/Logs is outside the container.
+            logDir = userDataDir.appendingPathComponent("Logs", isDirectory: true)
+#else
             logDir = home.appendingPathComponent("Library/Logs/Tenote", isDirectory: true)
+#endif
         }
         socketPath = TenotePaths.defaultSocketPath(environment: env)
     }

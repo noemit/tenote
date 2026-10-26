@@ -10,6 +10,7 @@
     plugins: [],
     themes: [],
     themeId: 'latte',
+    mas: false,
     chips: [],
     chipSeq: 0,
     mdRules: [],
@@ -362,9 +363,10 @@
     }
     const add = document.createElement('div');
     add.className = 'plug-actions';
-    add.innerHTML =
-      '<button class="set-btn plug-add" data-install-plugin="1">⤓ Install from file…</button>' +
-      '<button class="set-btn plug-add" data-open-plugins="1">Open plugins folder</button>';
+    add.innerHTML = state.mas
+      ? '<div class="plug-empty">The App Store build includes built-in plugins only.</div>'
+      : '<button class="set-btn plug-add" data-install-plugin="1">⤓ Install from file…</button>' +
+        '<button class="set-btn plug-add" data-open-plugins="1">Open plugins folder</button>';
     box.appendChild(add);
   }
 
@@ -383,6 +385,7 @@
         setStatus(r.active ? `"${name}" is on` : (cb.checked ? `"${name}" failed to activate` : `"${name}" is off`), 3000);
         const st = await hostCall('state');
         if (st) {
+          state.mas = !!st.mas;
           state.plugins = st.plugins || [];
           state.themes = st.themes || [];
           renderThemeRow();
@@ -394,6 +397,7 @@
     });
     box.addEventListener('click', async (e) => {
       if (e.target.closest('[data-install-plugin]')) {
+        if (state.mas) return;
         setStatus('Choose a plugin to install…');
         const r = await hostCall('installPlugin');
         if (!r) { setStatus('Install failed', 3000); return; }
@@ -708,6 +712,7 @@
     wirePluginsSection();
     const st = await hostCall('state');
     if (!st) return;
+    state.mas = !!st.mas;
     state.plugins = st.plugins || [];
     state.themes = st.themes || [];
     state.themeId = st.themeId || 'latte';

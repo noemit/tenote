@@ -6,3 +6,4 @@ screenshots
 screenshots/
 .build/
 .swiftpm/
+.build-mas/

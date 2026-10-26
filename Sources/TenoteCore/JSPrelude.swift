@@ -329,6 +329,12 @@ extension JSRuntime {
     else if (typeof opts === 'function') { cb = opts; opts = {}; }
     if (!Array.isArray(args)) { opts = args || opts; args = []; }
     opts = opts || {};
+    if (!INFO.allowExec) {
+      const e = new Error('child_process is not available in the App Store build');
+      e.code = 'ENOTSUP';
+      if (typeof cb === 'function') return cb(e, '', '');
+      throw e;
+    }
     const o = { cwd: opts.cwd ? String(opts.cwd) : null, timeout: Number(opts.timeout) || 0 };
     if (opts.env) o.env = opts.env;
     N.exec(String(file), args.map(String), o, (err, code, stdout, stderr) => {

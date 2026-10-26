@@ -11,14 +11,22 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
     static let toggleCoalesce: TimeInterval = 0.25
 
     let env = ProcessInfo.processInfo.environment
-    let paths: TenotePaths
+    var paths: TenotePaths
     let resources: URL
     let logger: Logger
     let settings: Settings
-    let store: NoteStore
+    var store: NoteStore!
     let io = DispatchQueue(label: "tenote.io", qos: .userInitiated)
     let version: String
     let builtinShortcut: String?
+
+    private var isMAS: Bool {
+#if MAS
+        return true
+#else
+        return false
+#endif
+    }
 
     private(set) var host: PluginHost!
     private var card: CardWindow!
@@ -51,10 +59,21 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
     // MARK: lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+#if MAS
+        // Sandbox: .documentDirectory is the container. Resolve the user's chosen
+        // notes folder (security-scoped bookmark) before anything reads notes.
+        if let url = NotesLocation.resolve(userDataDir: paths.userDataDir, logger: logger) {
+            paths.notesDir = url
+            store = NoteStore(notesDir: url, logger: logger)
+        } else {
+            logger.warn("app", "no notes folder selected — using container Documents")
+        }
+#else
         if SocketServer.send("show", to: paths.socketPath, timeout: 1) != nil {
             logger.info("app", "another instance is running; quitting")
             exit(0)
         }
+#endif
         logger.info("app", "bootstrap", [
             "version": version, "platform": "darwin", "shortcut": builtinShortcut ?? NSNull(),
             "notesDir": notesDir, "socket": paths.socketPath, "logFile": logger.logFile.path,
@@ -62,8 +81,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
         ])
         installMainMenu()
         applyDockIcon()
+#if !MAS
         PluginInstaller.seedExamples(from: resources.appendingPathComponent("examples"), into: paths.pluginsUserDir,
                                      settings: settings, logger: logger)
+#endif
         setupHost()
         host.discover()
         if env["TENOTE_NO_PLUGINS"].map({ !$0.isEmpty }) == true {
@@ -71,7 +92,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
         } else {
             host.activateAll()
         }
+#if !MAS
         startSocket()
+#endif
         createWindow()
         setupTray()
         applyLoginItem()
@@ -95,6 +118,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
         host?.shutdown()
         hotKeys.unregisterAll()
         socket?.stop()
+        NotesLocation.stopAccess()
         logger.flush()
     }
 
@@ -155,9 +179,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
 
     private func setupHost() {
         let builtin = resources.appendingPathComponent("plugins/builtin", isDirectory: true)
-        let envFiles = (env["TENOTE_PLUGINS"] ?? "").split(separator: ":").map(String.init)
+        var layers = [PluginHost.Layer(name: "builtin", dir: builtin)]
+        var envFiles: [String] = []
+#if !MAS
+        layers.append(PluginHost.Layer(name: "user", dir: paths.pluginsUserDir))
+        envFiles = (env["TENOTE_PLUGINS"] ?? "").split(separator: ":").map(String.init)
+#endif
         let h = PluginHost(logger: logger, settings: settings,
-                           layers: [PluginHost.Layer(name: "builtin", dir: builtin), PluginHost.Layer(name: "user", dir: paths.pluginsUserDir)],
+                           layers: layers,
                            envFiles: envFiles, pluginDataRoot: paths.pluginDataRoot, kernel: self,
                            runtime: JSRuntime(logger: logger, version: version))
         h.persist = { [weak self] in self?.saveSettings() }
@@ -453,7 +482,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
         let fail = { (m: String) in done(.failure(JSRuntime.JSError(message: m))) }
         switch method {
         case "state":
-            done(.success(["plugins": host.publicList(), "themes": host.themeList(), "themeId": settings.theme]))
+            done(.success(["plugins": host.publicList(), "themes": host.themeList(), "themeId": settings.theme, "mas": isMAS]))
         case "themeCss":
             let id = "\(a["id"] ?? "")"
             guard host.hasTheme(id) else { return fail("unknown theme") }
@@ -515,6 +544,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
     }
 
     private func installPluginInteractive(_ done: @escaping (Result<Any?, JSRuntime.JSError>) -> Void) {
+#if MAS
+        done(.success(["ok": false, "error": "Plugins can only be installed in the direct build"]))
+        return
+#else
         let panel = NSOpenPanel()
         panel.title = "Choose a Tenote plugin"
         panel.prompt = "Install"
@@ -541,6 +574,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
                 DispatchQueue.main.async { done(.success(r)) }
             }
         }
+#endif
     }
 
     private func maybeSweepImages() {

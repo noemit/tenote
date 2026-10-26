@@ -14,6 +14,15 @@ public final class JSRuntime {
     private var timers: [Int: DispatchSourceTimer] = [:]
     private var nextTimerId = 1
 
+    /// App Store builds must not spawn processes; plugins get a clear error.
+    public static let isMAS: Bool = {
+#if MAS
+        return true
+#else
+        return false
+#endif
+    }()
+
     public init(logger: Logger, version: String = "") {
         guard let ctx = JSContext() else { fatalError("JavaScriptCore unavailable") }
         context = ctx
@@ -31,6 +40,7 @@ public final class JSRuntime {
             "user": NSUserName(),
             "hostname": ProcessInfo.processInfo.hostName,
             "arch": JSRuntime.arch(),
+            "allowExec": !JSRuntime.isMAS,
             "version": version,
         ]
         let prelude = context.evaluateScript(JSRuntime.prelude, withSourceURL: URL(string: "tenote://runtime/prelude.js"))

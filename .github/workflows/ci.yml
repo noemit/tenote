@@ -39,6 +39,19 @@ jobs:
           for p in renderer/index.html examples plugins assets/icon.png AppIcon.icns VERSION; do
             test -e "$R/$p" || { echo "missing $p"; exit 1; }
           done
+
+      - name: Build Mac App Store variant (unsigned)
+        run: packaging/build-mas.sh --build-only
+
+      - name: Check MAS bundle
+        run: |
+          APP="dist/Tenote.app"
+          R="$APP/Contents/Resources"
+          test -f "$R/PrivacyInfo.xcprivacy"
+          test -f "$R/plugins/builtin/core-commands/index.js"
+          test ! -d "$R/examples"
+          test ! -d "$R/plugins/user"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")" = "com.tenote.native.mas"
       - uses: actions/upload-artifact@v4
         with:
           name: Tenote-Native.app
