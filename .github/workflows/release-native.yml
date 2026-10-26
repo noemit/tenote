@@ -22,6 +22,17 @@ jobs:
         with:
           ref: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
 
+      - name: Check tag matches VERSION
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+        run: |
+          v="$(tr -d '[:space:]' < VERSION)"
+          if [[ "$TAG" != "native-v$v" ]]; then
+            echo "tag $TAG does not match VERSION (native-v$v)"
+            exit 1
+          fi
+          echo "RELEASE_NAME=Tenote Native $v" >> "$GITHUB_ENV"
+
       - name: Test
         run: swift test
 
@@ -39,6 +50,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "" "$KEYCHAIN"
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
           IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -1)
+          if [[ -z "$IDENTITY" ]]; then echo "no Developer ID Application identity in the cert"; exit 1; fi
           echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
 
       - name: Build, sign and notarize
@@ -48,15 +60,24 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: packaging/build-app.sh --dist
 
+      # A missing/expired identity or failed notarization must stop the release.
+      - name: Verify signature and notarization
+        run: |
+          APP="dist/Tenote Native.app"
+          codesign --verify --deep --strict "$APP"
+          spctl -a -vvv --type execute "$APP"
+          xcrun stapler validate "$APP"
+          for f in dist/TenoteNative-*.dmg; do xcrun stapler validate "$f"; done
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
-          name: Tenote Native ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+          name: ${{ env.RELEASE_NAME }}
           files: |
             dist/TenoteNative-*.dmg
             dist/TenoteNative-*.zip
-          prerelease: true
+          fail_on_unmatched_files: true
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

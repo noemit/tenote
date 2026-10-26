@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   electron:
     runs-on: macos-15
@@ -30,6 +33,12 @@ jobs:
         run: swift test
       - name: Package (ad-hoc signed)
         run: packaging/build-app.sh
+      - name: Check bundle contents
+        run: |
+          R="dist/Tenote Native.app/Contents/Resources"
+          for p in renderer/index.html examples plugins assets/icon.png AppIcon.icns VERSION; do
+            test -e "$R/$p" || { echo "missing $p"; exit 1; }
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: Tenote-Native.app

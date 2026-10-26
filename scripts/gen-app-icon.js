@@ -1,5 +1,10 @@
 'use strict';
 
+// LEGACY — this generated the pre-2.0 icon (three stacked cards + pencil).
+// The current icon is drawn in assets/icon.svg and rendered by
+// scripts/render-icon.sh, which is what `npm run icons` calls. Kept only as
+// reference; running this file would overwrite the new icon with the old one.
+//
 // Generates the designed Dock/app icon (assets/icon.png, 1024x1024):
 // three stacked cream note cards with a pencil on top, on a white rounded
 // tile. Corners are transparent (macOS convention). CLI only — the running
