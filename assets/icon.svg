@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFF9DA"/>
-      <stop offset="0.55" stop-color="#FFF0A6"/>
-      <stop offset="1" stop-color="#FFE071"/>
+      <stop offset="0" stop-color="#FFFDF4"/>
+      <stop offset="0.55" stop-color="#FAF3DF"/>
+      <stop offset="1" stop-color="#F3E8CB"/>
     </linearGradient>
 
     <linearGradient id="fold" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#F8CE63"/>
-      <stop offset="1" stop-color="#EEC04A"/>
+      <stop offset="0" stop-color="#E8D8B2"/>
+      <stop offset="1" stop-color="#DEC9A0"/>
     </linearGradient>
 
     <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
@@ -22,7 +22,7 @@
     </clipPath>
 
     <filter id="shadow" x="-25%" y="-25%" width="150%" height="150%">
-      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#6B4E00" flood-opacity="0.26"/>
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#5E4C2C" flood-opacity="0.26"/>
     </filter>
   </defs>
 
@@ -31,7 +31,7 @@
 
   <g clip-path="url(#note)">
     <!-- 5 x 5 dotted paper -->
-    <g fill="#C08A22" opacity="0.75">
+    <g fill="#BB8A32" opacity="0.75">
       <circle cx="214.4" cy="214.4" r="24"/>
       <circle cx="363.2" cy="214.4" r="24"/>
       <circle cx="512.0" cy="214.4" r="24"/>
@@ -64,12 +64,12 @@
 
     <!-- folded bottom-right corner -->
     <path d="M924 764 L924 924 L764 924 Z" fill="url(#fold)"/>
-    <path d="M764 924 L924 764 L924 788 L788 924 Z" fill="#FFEFC0" opacity="0.55"/>
+    <path d="M764 924 L924 764 L924 788 L788 924 Z" fill="#FBF2DC" opacity="0.55"/>
   </g>
 
   <!-- top highlight + a quiet edge so it holds on white -->
   <rect x="103" y="103" width="818" height="818" rx="182" fill="none"
         stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="4" clip-path="url(#note)"/>
   <rect x="100.5" y="100.5" width="823" height="823" rx="184.5" fill="none"
-        stroke="#E3BA4C" stroke-opacity="0.38" stroke-width="3"/>
+        stroke="#D9C9A4" stroke-opacity="0.38" stroke-width="3"/>
 </svg>
