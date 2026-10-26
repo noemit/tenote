@@ -36,6 +36,30 @@ jobs:
       - name: Test
         run: swift test
 
+      - name: Check signing secrets
+        env:
+          CERT: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE }}
+          CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=0
+          check() {
+            if [[ -z "${!1}" ]]; then
+              echo "::error::$2 is empty — add it in Settings → Secrets and variables → Actions"
+              missing=1
+            else
+              echo "$2 is set"
+            fi
+          }
+          check CERT APPLE_DEVELOPER_ID_CERTIFICATE
+          check CERT_PASSWORD APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD
+          check APPLE_ID APPLE_ID
+          check APPLE_APP_SPECIFIC_PASSWORD APPLE_APP_SPECIFIC_PASSWORD
+          check APPLE_TEAM_ID APPLE_TEAM_ID
+          exit $missing
+
       - name: Import signing certificate
         env:
           CERT_P12: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE }}

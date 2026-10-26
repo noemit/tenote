@@ -12,13 +12,10 @@
     </linearGradient>
 
     <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.5"/>
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.32"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
 
-    <pattern id="dots" width="56" height="56" patternUnits="userSpaceOnUse">
-      <circle cx="28" cy="28" r="6.5" fill="#D8A32B" opacity="0.38"/>
-    </pattern>
 
     <clipPath id="note">
       <rect x="100" y="100" width="824" height="824" rx="185"/>
@@ -33,11 +30,37 @@
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#paper)" filter="url(#shadow)"/>
 
   <g clip-path="url(#note)">
-    <!-- dotted paper -->
-    <rect x="100" y="100" width="824" height="824" fill="url(#dots)"/>
+    <!-- 5 x 5 dotted paper -->
+    <g fill="#C08A22" opacity="0.75">
+      <circle cx="214.4" cy="214.4" r="24"/>
+      <circle cx="363.2" cy="214.4" r="24"/>
+      <circle cx="512.0" cy="214.4" r="24"/>
+      <circle cx="660.8" cy="214.4" r="24"/>
+      <circle cx="809.6" cy="214.4" r="24"/>
+      <circle cx="214.4" cy="363.2" r="24"/>
+      <circle cx="363.2" cy="363.2" r="24"/>
+      <circle cx="512.0" cy="363.2" r="24"/>
+      <circle cx="660.8" cy="363.2" r="24"/>
+      <circle cx="809.6" cy="363.2" r="24"/>
+      <circle cx="214.4" cy="512.0" r="24"/>
+      <circle cx="363.2" cy="512.0" r="24"/>
+      <circle cx="512.0" cy="512.0" r="24"/>
+      <circle cx="660.8" cy="512.0" r="24"/>
+      <circle cx="809.6" cy="512.0" r="24"/>
+      <circle cx="214.4" cy="660.8" r="24"/>
+      <circle cx="363.2" cy="660.8" r="24"/>
+      <circle cx="512.0" cy="660.8" r="24"/>
+      <circle cx="660.8" cy="660.8" r="24"/>
+      <circle cx="809.6" cy="660.8" r="24"/>
+      <circle cx="214.4" cy="809.6" r="24"/>
+      <circle cx="363.2" cy="809.6" r="24"/>
+      <circle cx="512.0" cy="809.6" r="24"/>
+      <circle cx="660.8" cy="809.6" r="24"/>
+      <circle cx="809.6" cy="809.6" r="24"/>
+    </g>
 
     <!-- light from the top -->
-    <rect x="100" y="100" width="824" height="300" fill="url(#gloss)"/>
+    <rect x="100" y="100" width="824" height="260" fill="url(#gloss)"/>
 
     <!-- folded bottom-right corner -->
     <path d="M924 764 L924 924 L764 924 Z" fill="url(#fold)"/>
