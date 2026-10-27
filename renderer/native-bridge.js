@@ -44,6 +44,8 @@
     listNotes: () => call('note:list'),
     readNote: (id) => call('note:read', id),
     recentNotes: (limit) => call('note:recent', limit),
+    setNoteFlag: (id, flag, value) => call('note:flag', { id, flag, value }),
+    revealNote: (id) => call('note:reveal', id),
     attachImage: (payload) => call('note:attach', payload),
     pathForFile: (f) => (f && droppedPaths.get(f.name)) || '',
     openNotesFolder: () => call('notes:openFolder'),

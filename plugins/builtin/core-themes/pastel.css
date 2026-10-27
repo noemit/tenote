@@ -21,4 +21,5 @@ body[data-theme="pastel"] {
   --tile: #f0eefc;
   --danger: #b03a2e;
   --dots: rgba(110, 90, 150, 0.12);
+  --paper-style: dots;
 }

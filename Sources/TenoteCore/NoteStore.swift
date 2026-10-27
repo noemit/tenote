@@ -210,7 +210,7 @@ public final class NoteStore {
             guard let raw = readHead(notesDir.appendingPathComponent(f), bytes: 2048) else { continue }
             let (meta, body) = NoteStore.parse(raw)
             notes.append([
-                "id": meta.id ?? String(f.dropLast(3)),
+                "id": String(f.dropLast(3)),
                 "created": meta.created ?? NSNull(),
                 "updated": meta.updated ?? NSNull(),
                 "tags": meta.tags,
@@ -235,27 +235,38 @@ public final class NoteStore {
         }
     }
 
-    /// Most recent notes by file mtime; `total` drives the "+N more" card.
-    public func recent(_ limit: Any?) -> [String: Any] {
+    /// Most recent notes by file mtime, with pinned/snoozed overrides.
+    /// `total` drives the "+N more" card; `pinned`/`snoozed` drive the badges.
+    public func recent(_ limit: Any?, pinned: Set<String> = [], snoozed: Set<String> = []) -> [String: Any] {
         let requested = (limit as? NSNumber)?.intValue ?? Int((limit as? String) ?? "") ?? 3
-        let n = max(1, min(requested == 0 ? 3 : requested, 8))
+        let n = max(1, min(requested == 0 ? 3 : requested, 30))
         let files = mdFiles()
         let fm = FileManager.default
         let stamped: [(String, Date)] = files.compactMap { f in
             guard let d = (try? fm.attributesOfItem(atPath: notesDir.appendingPathComponent(f).path))?[.modificationDate] as? Date else { return nil }
             return (f, d)
         }
-        let top = stamped.sorted { $0.1 > $1.1 }.prefix(n)
+        let sorted = stamped.sorted { a, b in
+            let aId = String(a.0.dropLast(3)), bId = String(b.0.dropLast(3))
+            let aPinned = pinned.contains(aId), bPinned = pinned.contains(bId)
+            if aPinned != bPinned { return aPinned }
+            let aSnoozed = snoozed.contains(aId), bSnoozed = snoozed.contains(bId)
+            if aSnoozed != bSnoozed { return !aSnoozed }
+            return a.1 > b.1
+        }
         var notes: [[String: Any]] = []
-        for (f, _) in top {
-            guard let raw = try? String(contentsOf: notesDir.appendingPathComponent(f), encoding: .utf8) else { continue }
+        for (f, _) in sorted.prefix(n) {
+            guard let raw = readHead(notesDir.appendingPathComponent(f), bytes: 2048) else { continue }
             let (meta, body) = NoteStore.parse(raw)
+            let id = String(f.dropLast(3))
             notes.append([
-                "id": meta.id ?? String(f.dropLast(3)),
+                "id": id,
                 "updated": meta.updated ?? NSNull(),
                 "title": NoteStore.title(of: body),
                 "snippet": NoteStore.snippet(of: body),
                 "tags": meta.tags,
+                "pinned": pinned.contains(id),
+                "snoozed": snoozed.contains(id),
             ])
         }
         return ["notes": notes, "total": files.count]

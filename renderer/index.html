@@ -117,6 +117,18 @@
       <div id="pview-body" class="pview-body"></div>
     </section>
 
+    <section id="peek" class="view hidden">
+      <header class="panel-header">
+        <span id="peek-title" class="panel-title"></span>
+        <div class="spacer"></div>
+        <button id="btn-peek-edit" class="text-btn" title="Edit this note">Edit</button>
+        <button id="btn-peek-close" class="icon-btn" title="Close (Esc)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </header>
+      <div id="peek-body" class="pview-body"></div>
+    </section>
+
     <div id="welcome" class="welcome hidden">
       <div class="welcome-card">
         <div class="welcome-title">Welcome to Tenote</div>
@@ -131,6 +143,8 @@
       </div>
     </div>
     <div id="chip-pop" class="chip-pop hidden"></div>
+    <div id="note-menu" class="ctx-menu hidden" role="menu"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <div id="plugin-modal" class="plugin-modal hidden">
       <header class="pm-header">
         <span id="plugin-modal-title"></span>
@@ -150,6 +164,7 @@
     <div class="rz rz-sw" data-edge="sw"></div>
   </div>
   <script src="loader.js"></script>
+  <script src="export-image.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

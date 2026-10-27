@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('tenote', {
   listNotes: () => ipcRenderer.invoke('note:list'),
   readNote: (id) => ipcRenderer.invoke('note:read', id),
   recentNotes: (limit) => ipcRenderer.invoke('note:recent', limit),
+  setNoteFlag: (id, flag, value) => ipcRenderer.invoke('note:flag', { id, flag, value }),
+  revealNote: (id) => ipcRenderer.invoke('note:reveal', id),
   attachImage: (payload) => ipcRenderer.invoke('note:attach', payload),
   pathForFile: (f) => webUtils.getPathForFile(f),
   openNotesFolder: () => ipcRenderer.invoke('notes:openFolder'),

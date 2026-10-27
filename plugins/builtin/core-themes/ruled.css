@@ -24,4 +24,5 @@ body[data-theme="ruled"] {
   --rule: rgba(70, 100, 130, 0.22);
   --paper-image: linear-gradient(to bottom, transparent calc(100% - 1px), var(--rule) 0);
   --paper-size: 100% 28px;
+  --paper-style: lines;
 }

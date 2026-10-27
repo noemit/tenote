@@ -21,4 +21,5 @@ body[data-theme="clay"] {
   --tile: #edddd0;
   --danger: #b03a2e;
   --dots: rgba(140, 90, 60, 0.18);
+  --paper-style: dots;
 }

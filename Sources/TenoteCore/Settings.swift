@@ -16,10 +16,14 @@ public final class Settings {
     public var examplesSeeded = false
     /// Per-plugin key/value store (JSON-compatible Foundation values).
     public var pluginValues: [String: [String: Any]] = [:]
+    /// Recents-strip overrides, per device.
+    public var pinnedNotes: [String] = []
+    public var snoozedNotes: [String] = []
 
     public let file: URL?
     private var extra: [String: Any] = [:]
     private var extraPlugins: [String: Any] = [:]
+    private var extraRecents: [String: Any] = [:]
 
     public init(file: URL?) {
         self.file = file
@@ -55,6 +59,11 @@ public final class Settings {
             }
             extraPlugins = p
         }
+        if var r = rest.removeValue(forKey: "recents") as? [String: Any] {
+            pinnedNotes = (r.removeValue(forKey: "pinned") as? [Any])?.compactMap { $0 as? String } ?? []
+            snoozedNotes = (r.removeValue(forKey: "snoozed") as? [Any])?.compactMap { $0 as? String } ?? []
+            extraRecents = r
+        }
         extra = rest
     }
 
@@ -74,6 +83,10 @@ public final class Settings {
         p["values"] = pluginValues
         p["examplesSeeded"] = examplesSeeded
         d["plugins"] = p
+        var r = extraRecents
+        r["pinned"] = pinnedNotes
+        r["snoozed"] = snoozedNotes
+        d["recents"] = r
         return d
     }
 

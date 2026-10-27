@@ -230,7 +230,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
 
     func notesList() -> Any { io.sync { store.list() } }
     func notesRead(_ id: Any?) -> Any? { io.sync { store.read(id) } }
-    func notesRecent(_ limit: Any?) -> Any { io.sync { store.recent(limit) } }
+    func notesRecent(_ limit: Any?) -> Any {
+        io.sync { store.recent(limit, pinned: Set(settings.pinnedNotes), snoozed: Set(settings.snoozedNotes)) }
+    }
 
     func notesSave(_ payload: [String: Any]) -> Any {
         let piped = host.applyBeforeSave([
@@ -243,6 +245,20 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
             store.save(id: piped["id"], text: (piped["text"] as? String) ?? "", tags: (piped["tags"] as? [Any]) ?? []) { saved = $0 }
         }
         if let s = saved { host.emit("note:saved", s) }
+        if let s = saved, (s["ok"] as? Bool) == true, let id = s["id"] as? String {
+            let beforePins = settings.pinnedNotes.count
+            let beforeSnoozes = settings.snoozedNotes.count
+            if (s["deleted"] as? Bool) == true {
+                settings.pinnedNotes.removeAll { $0 == id }
+                settings.snoozedNotes.removeAll { $0 == id }
+            } else {
+                // A real edit brings a snoozed note back to normal recency.
+                settings.snoozedNotes.removeAll { $0 == id }
+            }
+            if settings.pinnedNotes.count != beforePins || settings.snoozedNotes.count != beforeSnoozes {
+                saveSettings()
+            }
+        }
         return result
     }
 
@@ -436,7 +452,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
         case "app:quit": reply(true); DispatchQueue.main.async { self.quitApp() }
         case "note:save": reply(notesSave(a))
         case "note:list": async(reply) { $0.store.list() }
-        case "note:recent": async(reply) { $0.store.recent(args) }
+        case "note:recent": async(reply) { $0.store.recent(args, pinned: Set($0.settings.pinnedNotes), snoozed: Set($0.settings.snoozedNotes)) }
         case "note:read":
             io.async { [weak self] in
                 let note = self?.store.read(args)
@@ -448,6 +464,28 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
         case "note:attach":
             let mime = (a["mime"] as? String) ?? "", b64 = (a["base64"] as? String) ?? ""
             async(reply) { $0.store.attachImage(mime: mime, base64: b64) }
+        case "note:flag":
+            guard let clean = NoteStore.safeId(a["id"] as? String) else { return reply(["ok": false, "error": "bad id"]) }
+            let flag = (a["flag"] as? String) ?? ""
+            let value = (a["value"] as? Bool) ?? false
+            switch flag {
+            case "pinned":
+                settings.pinnedNotes.removeAll { $0 == clean }
+                settings.snoozedNotes.removeAll { $0 == clean }
+                if value { settings.pinnedNotes.append(clean) }
+            case "snoozed":
+                settings.pinnedNotes.removeAll { $0 == clean }
+                settings.snoozedNotes.removeAll { $0 == clean }
+                if value { settings.snoozedNotes.append(clean) }
+            default:
+                return reply(["ok": false, "error": "bad flag"])
+            }
+            saveSettings()
+            reply(["ok": true])
+        case "note:reveal":
+            guard let clean = NoteStore.safeId(a["id"] as? String) else { return reply(["ok": false]) }
+            NSWorkspace.shared.activateFileViewerSelecting([store.file(for: clean)])
+            reply(["ok": true])
         case "plugin:invoke":
             let name = (a["plugin"] as? String) ?? "", m = (a["method"] as? String) ?? ""
             let finish: (Result<Any?, JSRuntime.JSError>) -> Void = { [weak self] r in

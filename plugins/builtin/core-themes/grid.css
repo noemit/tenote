@@ -26,4 +26,5 @@ body[data-theme="grid"] {
     linear-gradient(to bottom, transparent calc(100% - 1px), var(--rule) 0),
     linear-gradient(to right, transparent calc(100% - 1px), var(--rule) 0);
   --paper-size: 100% 24px, 24px 100%;
+  --paper-style: grid;
 }

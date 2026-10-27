@@ -26,6 +26,11 @@
   const setHideRecents = $('#set-hide-recents');
   const brandEl = $('.brand');
   const notesCountEl = $('#btn-notes-count');
+  const toastEl = $('#toast');
+  const noteMenuEl = $('#note-menu');
+  const peekEl = $('#peek');
+  const peekTitleEl = $('#peek-title');
+  const peekBodyEl = $('#peek-body');
 
   const state = { id: null, created: null, sessionCreated: false, lastText: '' };
 
@@ -229,7 +234,27 @@
   }
 
   // ---- recents strip -------------------------------------------------------
-  function renderRecents(notes, total) {
+  const RECENTS_LIMIT = 30;
+  let lastRecentsNotes = [];
+  let lastRecentsKey = '';
+  let noteMenuNote = null;
+  let noteMenuOpener = null;
+  let peekId = null;
+  let toastTimer = null;
+
+  function pinSvg() {
+    return '<svg class="pin-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2l8 8-2 2-3-3-5 5 1 6-2 2-4-6-6-4 2-2 6 1 5-5-3-3z"/></svg>';
+  }
+
+  function showToast(msg, ms) {
+    if (!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms || 2200);
+  }
+
+  function renderRecents(notes, total, revealActive) {
     if (hideRecents) {
       recentsEl.innerHTML = '';
       recentsEl.classList.add('hidden');
@@ -242,26 +267,186 @@
       return;
     }
     notesCountEl.classList.add('hidden');
-    const cards = notes.map((n) => `<button class="recent-card" data-id="${escapeHtml(n.id)}">
-      <div class="rt">${escapeHtml(n.title)}</div>
-      <div class="rs">${escapeHtml(relativeTime(n.updated))}</div>
-    </button>`);
+    lastRecentsNotes = notes;
+    const scroll = recentsEl.scrollLeft;
+    const cards = notes.map((n) => {
+      const cls = ['recent-card'];
+      if (n.id === state.id) cls.push('active');
+      if (n.pinned) cls.push('pinned');
+      if (n.snoozed) cls.push('snoozed');
+      const title = escapeHtml(n.title);
+      return `<div class="${cls.join(' ')}" data-id="${escapeHtml(n.id)}" role="button" tabindex="0"` +
+        `${n.id === state.id ? ' aria-current="true"' : ''} title="${title}${n.snoozed ? ' (moved to bottom)' : ''}">` +
+        `<div class="rt">${n.pinned ? pinSvg() : ''}${title}</div>` +
+        `<div class="rs">${escapeHtml(relativeTime(n.updated))}</div>` +
+        `<button class="recent-more-btn" data-menu="1" aria-label="Actions for ${title}">⋯</button>` +
+        `</div>`;
+    });
     const more = total - notes.length;
     if (more > 0) {
-      cards.push(`<button class="recent-card recent-more" data-more="1"><div class="rt">+${more} more</div></button>`);
+      cards.push(`<div class="recent-card recent-more" data-more="1" role="button" tabindex="0"><div class="rt">+${more} more</div></div>`);
     }
     recentsEl.innerHTML = cards.join('');
     recentsEl.classList.toggle('hidden', cards.length === 0);
+    recentsEl.scrollLeft = scroll;
+    if (revealActive) {
+      requestAnimationFrame(() => {
+        const active = recentsEl.querySelector('.recent-card.active');
+        if (active) active.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+      });
+    }
   }
 
-  async function refreshRecents() {
+  async function refreshRecents(opts) {
     try {
-      const res = await jot.recentNotes(3);
-      let notes = res.notes || [];
+      const res = await jot.recentNotes(RECENTS_LIMIT);
+      const notes = res.notes || [];
       const total = res.total || 0;
-      if (state.sessionCreated && state.id) notes = notes.filter((n) => n.id !== state.id);
-      renderRecents(notes, total);
+      const key = notes.map((n) => [n.id, n.title, n.updated, n.pinned ? 1 : 0, n.snoozed ? 1 : 0].join('\u0001')).join('\u0002') +
+        '#' + total + '#' + (state.id || '') + '#' + (hideRecents ? 1 : 0);
+      if (key === lastRecentsKey) {
+        if (opts && opts.revealActive) {
+          const active = recentsEl.querySelector('.recent-card.active');
+          if (active) active.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+        }
+        return;
+      }
+      lastRecentsKey = key;
+      renderRecents(notes, total, opts && opts.revealActive);
     } catch (err) { console.error('recents failed', err); }
+  }
+
+  function noteById(id) {
+    return lastRecentsNotes.find((n) => n.id === id) || null;
+  }
+
+  function closeNoteMenu(returnFocus) {
+    if (!noteMenuEl || noteMenuEl.classList.contains('hidden')) return;
+    noteMenuEl.classList.add('hidden');
+    noteMenuEl.innerHTML = '';
+    const opener = noteMenuOpener;
+    noteMenuNote = null;
+    noteMenuOpener = null;
+    if (returnFocus && opener && opener.isConnected) opener.focus();
+  }
+
+  function openNoteMenu(note, card) {
+    if (!note || !noteMenuEl) return;
+    noteMenuNote = note;
+    noteMenuOpener = card || null;
+    const items = [
+      { label: 'Open', act: () => openNote(note.id) },
+      { label: 'Peek', act: () => openPeek(note.id) },
+      { sep: true },
+    ];
+    if (typeof jot.setNoteFlag === 'function') {
+      items.push({ label: note.pinned ? 'Unpin' : 'Pin', act: () => setNoteFlag(note, 'pinned') });
+      items.push({ label: note.snoozed ? 'Move back to recents' : 'Move to bottom', act: () => setNoteFlag(note, 'snoozed') });
+    }
+    items.push({ sep: true });
+    if (window.__tenoteExportImage) {
+      items.push({ label: 'Copy as image', act: () => copyNoteImage(note.id) });
+    }
+    if (typeof jot.revealNote === 'function') {
+      items.push({ label: 'Reveal in Finder', act: () => { try { jot.revealNote(note.id); } catch (e) { /* ignore */ } } });
+    }
+    noteMenuEl.innerHTML = items.map((it, i) => it.sep
+      ? '<div class="ctx-sep"></div>'
+      : `<button class="ctx-item" data-i="${i}" role="menuitem">${escapeHtml(it.label)}</button>`).join('');
+
+    const appRect = document.getElementById('app').getBoundingClientRect();
+    const cr = card ? card.getBoundingClientRect() : null;
+    noteMenuEl.classList.remove('hidden');
+    const mw = noteMenuEl.offsetWidth;
+    const mh = noteMenuEl.offsetHeight;
+    let left = cr ? cr.left - appRect.left : 12;
+    let top = cr ? cr.top - appRect.top - mh - 4 : 12;
+    if (cr && top < 6) top = cr.bottom - appRect.top + 4;
+    left = Math.max(6, Math.min(left, appRect.width - mw - 6));
+    top = Math.max(6, Math.min(top, appRect.height - mh - 6));
+    noteMenuEl.style.left = left + 'px';
+    noteMenuEl.style.top = top + 'px';
+
+    noteMenuEl.querySelectorAll('.ctx-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const it = items[Number(btn.dataset.i)];
+        closeNoteMenu(false);
+        if (it && it.act) it.act();
+      });
+    });
+    const first = noteMenuEl.querySelector('.ctx-item');
+    if (first) first.focus();
+  }
+
+  async function setNoteFlag(note, flag) {
+    if (!note || typeof jot.setNoteFlag !== 'function') { showToast('Not available in this build'); return; }
+    const value = !note[flag];
+    try {
+      await jot.setNoteFlag(note.id, flag, value);
+      lastRecentsKey = '';
+      await refreshRecents();
+      showToast(flag === 'pinned'
+        ? (value ? 'Pinned' : 'Unpinned')
+        : (value ? 'Moved to bottom' : 'Moved back to recents'));
+    } catch (e) {
+      console.error('stack flag failed', e);
+      showToast('Could not update the stack');
+    }
+  }
+
+  async function copyNoteImage(id) {
+    try {
+      let md = '';
+      let tags = [];
+      if (id && id === state.id) {
+        md = htmlToMd(ta);
+        tags = extractTags(md);
+      } else {
+        const n = await jot.readNote(id);
+        if (!n) { showToast('Note not found'); return; }
+        md = n.body || '';
+        tags = n.tags || extractTags(md);
+      }
+      if (!md.trim()) { showToast('Nothing to copy'); return; }
+      showToast('Rendering image…', 1200);
+      const ok = await window.__tenoteExportImage(md, { tags });
+      showToast(ok ? 'Copied to clipboard' : 'Could not copy image');
+    } catch (e) {
+      console.error('copy as image failed', e);
+      showToast('Could not copy image');
+    }
+  }
+
+  async function openPeek(id) {
+    closeNoteMenu(false);
+    closeSettings();
+    closeTips();
+    if (panelOpen) closePanel();
+    try { await flushSave(); } catch (e) { /* ignore */ }
+    try {
+      const n = await jot.readNote(id);
+      if (!n) { showToast('Note not found'); return; }
+      peekId = n.id;
+      const lines = String(n.body || '').split(/\r?\n/);
+      const firstIdx = lines.findIndex((l) => l.trim());
+      const first = firstIdx >= 0 ? lines[firstIdx].trim() : 'Note';
+      peekTitleEl.textContent = first.replace(/^#+\s*/, '').slice(0, 80);
+      // The header carries the title; don't repeat it as an H1 in the body.
+      const rest = firstIdx >= 0 ? lines.slice(firstIdx + 1).join('\n') : '';
+      peekBodyEl.innerHTML = mdToHtml(rest);
+      composerView.classList.add('hidden');
+      panelEl.classList.add('hidden');
+      peekEl.classList.remove('hidden');
+    } catch (e) { console.error('peek failed', e); }
+  }
+
+  function closePeek() {
+    if (!peekEl || peekEl.classList.contains('hidden')) return;
+    peekEl.classList.add('hidden');
+    peekBodyEl.innerHTML = '';
+    composerView.classList.remove('hidden');
+    peekId = null;
+    ta.focus();
   }
 
 
@@ -429,7 +614,9 @@
     if (!state.id && !text.trim()) return; // no note on disk yet and nothing to save
     // (an emptied existing note falls through — the main process deletes the file)
     if (text.length > 4 * 1024 * 1024) { showStatus('Note is too large (max 4 MB) — split it up', 4000); return; }
-    if (!force && text === state.lastText) return;
+    // Never rewrite an unchanged note: a write bumps the mtime and makes the
+    // recents strip jump to the top just for opening or closing a note.
+    if (state.id && text === state.lastText) return;
     state.lastText = text;
     saveChain = saveChain.then(async () => {
       try {
@@ -463,6 +650,8 @@
 
   // ---- notes ---------------------------------------------------------------
   async function openNote(id) {
+    closePeek();
+    closeNoteMenu(false);
     // Persist in-progress text before swapping the composer (debounce may not have fired).
     // Must await the chain — openNote does not bump gen, so a late save would clobber state.
     try { await flushSave(); } catch (err) { console.error('flush before open failed', err); }
@@ -478,13 +667,15 @@
       state.lastText = n.body;
       ta.innerHTML = mdToHtml(n.body);
       renderChips(n.tags || []);
-      refreshRecents();
+      refreshRecents({ revealActive: true });
       caretToEnd(ta);
     } catch (err) { console.error('open note failed', err); }
   }
 
   // Starts a brand-new note. Callers must flushSave() first if there's text to keep.
   function newNote() {
+    closePeek();
+    closeNoteMenu(false);
     closePanel();
     closeSettings();
     closeTips();
@@ -607,7 +798,7 @@
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText', false, '  '); }
   });
-  window.addEventListener('blur', flushSave);
+  window.addEventListener('blur', () => { closeNoteMenu(false); flushSave(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
 
   function welcomeVisible() { return !welcomeEl.classList.contains('hidden'); }
@@ -615,6 +806,25 @@
   welcomeEl.addEventListener('click', dismissWelcome);
 
   window.addEventListener('keydown', (e) => {
+    if (noteMenuEl && !noteMenuEl.classList.contains('hidden')) {
+      if (e.key === 'Escape') { e.preventDefault(); closeNoteMenu(true); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const items = [...noteMenuEl.querySelectorAll('.ctx-item')];
+        if (items.length) {
+          const i = items.indexOf(document.activeElement);
+          const next = items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
+          next.focus();
+        }
+        return;
+      }
+      if (e.key === 'Tab') { closeNoteMenu(false); return; }
+    }
+    if (peekEl && !peekEl.classList.contains('hidden') && e.key === 'Escape') {
+      e.preventDefault();
+      closePeek();
+      return;
+    }
     if (window.__tenoteKeys && window.__tenoteKeys(e)) return;
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -637,6 +847,9 @@
       if (panelOpen) return;
       e.preventDefault();
       document.execCommand('italic');
+    } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'e' || e.key === 'E')) {
+      e.preventDefault();
+      copyNoteImage(peekId || state.id);
     }
   });
 
@@ -703,8 +916,71 @@
 
   recentsEl.addEventListener('click', (e) => {
     if (e.target.closest('[data-more]')) { openPanel(); return; }
-    const card = e.target.closest('.recent-card');
+    const menuBtn = e.target.closest('[data-menu]');
+    if (menuBtn) {
+      e.stopPropagation();
+      const card = menuBtn.closest('.recent-card');
+      const note = card ? noteById(card.dataset.id) : null;
+      if (note) openNoteMenu(note, card);
+      return;
+    }
+    const card = e.target.closest('.recent-card[data-id]');
     if (card) openNote(card.dataset.id);
+  });
+
+  recentsEl.addEventListener('contextmenu', (e) => {
+    const card = e.target.closest('.recent-card[data-id]');
+    if (!card) return;
+    e.preventDefault();
+    const note = noteById(card.dataset.id);
+    if (note) openNoteMenu(note, card);
+  });
+
+  recentsEl.addEventListener('keydown', (e) => {
+    if (e.target.closest('[data-menu]')) return;
+    if (e.target.closest('[data-more]')) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPanel(); }
+      return;
+    }
+    const card = e.target.closest('.recent-card[data-id]');
+    if (!card) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNote(card.dataset.id); return; }
+    if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+      e.preventDefault();
+      const note = noteById(card.dataset.id);
+      if (note) openNoteMenu(note, card);
+      return;
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      const cards = [...recentsEl.querySelectorAll('.recent-card[data-id]')];
+      const i = cards.indexOf(card);
+      const next = cards[i + (e.key === 'ArrowRight' ? 1 : -1)];
+      if (next) {
+        e.preventDefault();
+        next.focus();
+        next.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+      }
+    }
+  });
+
+  recentsEl.addEventListener('wheel', (e) => {
+    if (recentsEl.scrollWidth <= recentsEl.clientWidth) return;
+    if (Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+    recentsEl.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('mousedown', (e) => {
+    if (noteMenuEl && !noteMenuEl.classList.contains('hidden') && !noteMenuEl.contains(e.target)) {
+      closeNoteMenu(false);
+    }
+  });
+
+  $('#btn-peek-close').addEventListener('click', closePeek);
+  $('#btn-peek-edit').addEventListener('click', () => {
+    const id = peekId;
+    closePeek();
+    if (id) openNote(id);
   });
 
   noteListEl.addEventListener('click', (e) => {
@@ -725,6 +1001,8 @@
 
   // Every time the window opens: a fresh note (already-saved text stays saved).
   jot.onShown(() => {
+    closePeek();
+    closeNoteMenu(false);
     flushSave();
     newNote();
   });

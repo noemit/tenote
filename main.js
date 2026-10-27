@@ -100,6 +100,7 @@ function defaultSettings() {
     hideOnBlur: false, launchAtLogin: false, hideBrand: false, hideRecents: false,
     showDockIcon: false, firstRunDone: false, theme: 'latte', lastImageSweep: 0,
     plugins: { disabled: [], paths: [], values: {} },
+    recents: { pinned: [], snoozed: [] },
   };
 }
 
@@ -112,6 +113,9 @@ function loadSettings() {
   if (!Array.isArray(merged.plugins.disabled)) merged.plugins.disabled = [];
   if (!Array.isArray(merged.plugins.paths)) merged.plugins.paths = [];
   if (!merged.plugins.values || typeof merged.plugins.values !== 'object') merged.plugins.values = {};
+  merged.recents = Object.assign({ pinned: [], snoozed: [] }, (raw && raw.recents) || {});
+  if (!Array.isArray(merged.recents.pinned)) merged.recents.pinned = [];
+  if (!Array.isArray(merged.recents.snoozed)) merged.recents.snoozed = [];
   return merged;
 }
 
@@ -835,6 +839,33 @@ function setupIpc() {
     return note;
   }));
   ipcMain.handle('note:recent', (e, limit) => wrapIpc('note:recent', limit, recentNotes));
+  ipcMain.handle('note:flag', (e, payload) => {
+    const p = payload || {};
+    const id = safeId(p.id);
+    const flag = String(p.flag || '');
+    const value = !!p.value;
+    if (!id) return { ok: false, error: 'bad id' };
+    if (!settings.recents || typeof settings.recents !== 'object') settings.recents = { pinned: [], snoozed: [] };
+    if (flag === 'pinned') {
+      settings.recents.pinned = settings.recents.pinned.filter((x) => x !== id);
+      settings.recents.snoozed = settings.recents.snoozed.filter((x) => x !== id);
+      if (value) settings.recents.pinned.push(id);
+    } else if (flag === 'snoozed') {
+      settings.recents.pinned = settings.recents.pinned.filter((x) => x !== id);
+      settings.recents.snoozed = settings.recents.snoozed.filter((x) => x !== id);
+      if (value) settings.recents.snoozed.push(id);
+    } else {
+      return { ok: false, error: 'bad flag' };
+    }
+    saveSettings();
+    return { ok: true };
+  });
+  ipcMain.handle('note:reveal', (e, id) => {
+    const clean = safeId(id);
+    if (!clean) return { ok: false };
+    shell.showItemInFolder(noteFile(clean));
+    return { ok: true };
+  });
   ipcMain.handle('note:attach', (e, payload) => wrapIpc('note:attach', payload, attachImage));
 
   ipcMain.handle('plugin:invoke', async (e, payload) => {
@@ -1012,6 +1043,11 @@ function saveNote(payload) {
       logger.info('note', 'deleted empty note', { id });
       firePluginEvent('note:saved', { id, deleted: true });
     }
+    if (settings.recents.pinned.includes(id) || settings.recents.snoozed.includes(id)) {
+      settings.recents.pinned = settings.recents.pinned.filter((x) => x !== id);
+      settings.recents.snoozed = settings.recents.snoozed.filter((x) => x !== id);
+      saveSettings();
+    }
     return { ok: true, id, deleted: true };
   }
 
@@ -1020,6 +1056,10 @@ function saveNote(payload) {
   atomicWriteFileSync(file, serializeNote(meta, text), 'utf8');
   logger.debug('note', 'saved', { id, length: text.length, tags: meta.tags });
   firePluginEvent('note:saved', { id, deleted: false, updated: meta.updated });
+  if (settings.recents.snoozed.includes(id)) {
+    settings.recents.snoozed = settings.recents.snoozed.filter((x) => x !== id);
+    saveSettings();
+  }
   return { ok: true, id, created: meta.created, updated: meta.updated, path: file, deleted: false };
 }
 
@@ -1067,7 +1107,7 @@ async function listNotes() {
         const raw = await readFileHead(path.join(NOTES_DIR, f), 2048);
         const { meta, body } = parseNote(raw);
         return {
-          id: meta.id || f.replace(/\.md$/, ''),
+          id: f.replace(/\.md$/, ''),
           created: meta.created || null,
           updated: meta.updated || null,
           tags: meta.tags || [],
@@ -1102,7 +1142,10 @@ async function readNote(id) {
 // The 3 most recent notes, cheap: sorts by file mtime (no full scan needed).
 // Returns { notes, total } — total drives the "+N more" overflow card.
 async function recentNotes(limit) {
-  const n = Math.max(1, Math.min(parseInt(limit, 10) || 3, 8));
+  const n = Math.max(1, Math.min(parseInt(limit, 10) || 3, 30));
+  const pinned = new Set(Array.isArray(settings.recents && settings.recents.pinned) ? settings.recents.pinned : []);
+  const snoozed = new Set(Array.isArray(settings.recents && settings.recents.snoozed) ? settings.recents.snoozed : []);
+  const idOf = (f) => f.replace(/\.md$/, '');
   try {
     if (!fs.existsSync(NOTES_DIR)) return { notes: [], total: 0 };
     const files = (await fs.promises.readdir(NOTES_DIR)).filter((f) => f.endsWith('.md'));
@@ -1110,17 +1153,27 @@ async function recentNotes(limit) {
       try { return { f, m: (await fs.promises.stat(path.join(NOTES_DIR, f))).mtimeMs }; }
       catch (e) { return null; }
     }));
-    const top = stats.filter(Boolean).sort((a, b) => b.m - a.m).slice(0, n);
+    const ordered = stats.filter(Boolean).sort((a, b) => {
+      const ap = pinned.has(idOf(a.f)), bp = pinned.has(idOf(b.f));
+      if (ap !== bp) return ap ? -1 : 1;
+      const as = snoozed.has(idOf(a.f)), bs = snoozed.has(idOf(b.f));
+      if (as !== bs) return as ? 1 : -1;
+      return b.m - a.m;
+    });
+    const top = ordered.slice(0, n);
     const notes = (await Promise.all(top.map(async ({ f }) => {
       try {
-        const raw = await fs.promises.readFile(path.join(NOTES_DIR, f), 'utf8');
+        const raw = await readFileHead(path.join(NOTES_DIR, f), 2048);
         const { meta, body } = parseNote(raw);
+        const id = idOf(f);
         return {
-          id: meta.id || f.replace(/\.md$/, ''),
+          id,
           updated: meta.updated || null,
           title: titleOf(body),
           snippet: snippetOf(body),
           tags: meta.tags || [],
+          pinned: pinned.has(id),
+          snoozed: snoozed.has(id),
         };
       } catch (e) { return null; }
     }))).filter(Boolean);
