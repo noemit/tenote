@@ -1,10 +1,14 @@
 {
   "name": "core-themes",
   "version": "1.0.0",
-  "description": "The five built-in Tenote themes.",
+  "description": "The built-in Tenote themes.",
   "themes": [
     { "id": "latte", "name": "Latte", "css": "latte.css", "swatch": ["#f3eadb", "#e2d3b8"] },
     { "id": "pearl", "name": "Pearl", "css": "pearl.css", "swatch": ["#f5f6f8", "#d9dde3"] },
+    { "id": "sage", "name": "Sage", "css": "sage.css", "swatch": ["#eef3e8", "#5d7a4f"] },
+    { "id": "clay", "name": "Clay", "css": "clay.css", "swatch": ["#f4e6da", "#a45b3a"] },
+    { "id": "ruled", "name": "Ruled", "css": "ruled.css", "swatch": ["#fbf8ef", "#2f6f9f"] },
+    { "id": "grid", "name": "Grid", "css": "grid.css", "swatch": ["#f7f9f4", "#4f7a5a"] },
     { "id": "espresso", "name": "Espresso", "css": "espresso.css", "swatch": ["#2a211b", "#4a3d31"] },
     { "id": "midnight", "name": "Midnight", "css": "midnight.css", "swatch": ["#1e232c", "#37404f"] },
     { "id": "pastel", "name": "Pastel", "css": "pastel.css", "swatch": ["#ffe3ec", "#d9dcff"] }

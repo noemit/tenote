@@ -1,4 +1,4 @@
-/* Tenote — clean rounded card, 5 themes (2 light, 2 dark, 1 pastel). */
+/* Tenote — clean rounded card, built-in themes. */
 
 :root {
   /* default: cappuccino latte */
@@ -24,6 +24,9 @@
   --tile: #efe4d0;
   --danger: #b03a2e;
   --dots: rgba(122, 92, 55, 0.16);
+  --rule: rgba(122, 92, 55, 0.16);
+  --paper-image: radial-gradient(circle, var(--dots) 1.1px, transparent 1.4px);
+  --paper-size: 20px 20px;
 }
 
 /* ---- Themes live in plugins/builtin/core-themes/*.css (one per theme).
@@ -613,9 +616,9 @@ body {
 
 /* ---- composer ------------------------------------------------------------ */
 #composer {
-  /* dotted paper — the default Tenote surface */
-  background-image: radial-gradient(circle, var(--dots) 1.1px, transparent 1.4px);
-  background-size: 20px 20px;
+  /* dotted paper by default; Ruled/Grid override these in their theme CSS */
+  background-image: var(--paper-image);
+  background-size: var(--paper-size);
 }
 
 #note {

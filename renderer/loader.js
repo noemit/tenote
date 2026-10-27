@@ -715,7 +715,9 @@
     state.mas = !!st.mas;
     state.plugins = st.plugins || [];
     state.themes = st.themes || [];
-    state.themeId = st.themeId || 'latte';
+    const wantedTheme = st.themeId || 'latte';
+    state.themeId = state.themes.some((t) => t.id === wantedTheme) ? wantedTheme : 'latte';
+    if (state.themeId !== wantedTheme) { try { jot.setTheme(state.themeId); } catch (e) { /* ignore */ } }
     renderThemeRow();
     renderPluginsSection();
     await applyThemeSheet(state.themeId);

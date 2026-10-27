@@ -1,0 +1,27 @@
+body[data-theme="ruled"] {
+  --bg: #fbf8ef;
+  --surface: #fffdf7;
+  --border: #e4dcc9;
+  --text: #2f3a44;
+  --muted: #8a8577;
+  --accent: #2f6f9f;
+  --hover: rgba(47, 111, 159, 0.08);
+  --active: rgba(47, 111, 159, 0.13);
+  --app-border: transparent;
+  --bg-solid: #fbf8ef;
+  --window-shadow: 0 2px 6px rgba(0, 0, 0, 0.10), 0 14px 36px rgba(50, 60, 70, 0.16);
+  --icon: #4a5a68;
+  --placeholder: #b0a992;
+  --selection: rgba(47, 111, 159, 0.22);
+  --code-bg: rgba(47, 111, 159, 0.10);
+  --scroll: rgba(90, 100, 110, 0.30);
+  --scroll-hover: rgba(90, 100, 110, 0.45);
+  --shadow: 0 8px 28px rgba(70, 60, 40, 0.12);
+  --pop: #fffdf7;
+  --tile: #f1ece0;
+  --danger: #b03a2e;
+  --dots: rgba(70, 100, 130, 0.20);
+  --rule: rgba(70, 100, 130, 0.22);
+  --paper-image: linear-gradient(to bottom, transparent calc(100% - 1px), var(--rule) 0);
+  --paper-size: 100% 28px;
+}

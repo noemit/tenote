@@ -1,0 +1,29 @@
+body[data-theme="grid"] {
+  --bg: #f7f9f4;
+  --surface: #ffffff;
+  --border: #dfe5d9;
+  --text: #2f3a34;
+  --muted: #7d8a76;
+  --accent: #4f7a5a;
+  --hover: rgba(79, 122, 90, 0.08);
+  --active: rgba(79, 122, 90, 0.13);
+  --app-border: transparent;
+  --bg-solid: #f7f9f4;
+  --window-shadow: 0 2px 6px rgba(0, 0, 0, 0.10), 0 14px 36px rgba(50, 70, 60, 0.15);
+  --icon: #5f6f62;
+  --placeholder: #a9b3a6;
+  --selection: rgba(79, 122, 90, 0.22);
+  --code-bg: rgba(79, 122, 90, 0.10);
+  --scroll: rgba(90, 110, 95, 0.30);
+  --scroll-hover: rgba(90, 110, 95, 0.45);
+  --shadow: 0 8px 28px rgba(60, 75, 60, 0.12);
+  --pop: #ffffff;
+  --tile: #eef2ea;
+  --danger: #b03a2e;
+  --dots: rgba(80, 110, 90, 0.16);
+  --rule: rgba(80, 110, 90, 0.16);
+  --paper-image:
+    linear-gradient(to bottom, transparent calc(100% - 1px), var(--rule) 0),
+    linear-gradient(to right, transparent calc(100% - 1px), var(--rule) 0);
+  --paper-size: 100% 24px, 24px 100%;
+}
