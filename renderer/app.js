@@ -243,7 +243,7 @@
   let toastTimer = null;
 
   function pinSvg() {
-    return '<svg class="pin-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2l8 8-2 2-3-3-5 5 1 6-2 2-4-6-6-4 2-2 6 1 5-5-3-3z"/></svg>';
+    return '<svg class="pin-mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4.5"/><path d="M10.6 12h2.8v6.4L12 22l-1.4-3.6z"/></svg>';
   }
 
   function showToast(msg, ms) {
