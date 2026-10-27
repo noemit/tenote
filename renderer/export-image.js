@@ -79,7 +79,7 @@
     return items;
   }
 
-  function drawPaper(ctx, x, y, w, h, style, dots, rule) {
+  function drawPaper(ctx, x, y, w, h, style, dots, rule, bodyTop, lineH) {
     if (style === 'none') return;
     ctx.save();
     ctx.beginPath();
@@ -97,11 +97,18 @@
     } else if (style === 'lines' || style === 'grid') {
       ctx.strokeStyle = rule;
       ctx.lineWidth = 1;
-      for (let gy = y + 28; gy < y + h; gy += 28) {
+      // One rule per text row, 5px below the row's baseline, so the text sits
+      // between two rules instead of having a line run through it.
+      const step = lineH;
+      const below = bodyTop + lineH - 5;
+      for (let gy = below; gy < y + h; gy += step) {
+        ctx.beginPath(); ctx.moveTo(x, gy + 0.5); ctx.lineTo(x + w, gy + 0.5); ctx.stroke();
+      }
+      for (let gy = below - step; gy > y; gy -= step) {
         ctx.beginPath(); ctx.moveTo(x, gy + 0.5); ctx.lineTo(x + w, gy + 0.5); ctx.stroke();
       }
       if (style === 'grid') {
-        for (let gx = x + 24; gx < x + w; gx += 24) {
+        for (let gx = x + lineH; gx < x + w; gx += lineH) {
           ctx.beginPath(); ctx.moveTo(gx + 0.5, y); ctx.lineTo(gx + 0.5, y + h); ctx.stroke();
         }
       }
@@ -154,6 +161,7 @@
     const cardH = Math.max(200, chromeH + bodyLines.length * lineH + (truncated ? lineH : 0));
     const W = CARD_W + M * 2;
     const H = cardH + M * 2;
+    const bodyTop = M + P + titleLines.length * titleLH + 24;
 
     const canvas = document.createElement('canvas');
     const dpr = 2;
@@ -175,7 +183,7 @@
     ctx.fill();
     ctx.restore();
 
-    drawPaper(ctx, M, M, CARD_W, cardH, paper, dots, rule);
+    drawPaper(ctx, M, M, CARD_W, cardH, paper, dots, rule, bodyTop, lineH);
 
     ctx.save();
     roundRect(ctx, M + 0.5, M + 0.5, CARD_W - 1, cardH - 1, 20);
