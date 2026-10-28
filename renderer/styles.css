@@ -28,6 +28,9 @@
   --paper-image: radial-gradient(circle, var(--dots) 1.1px, transparent 1.4px);
   --paper-size: 20px 20px;
   --paper-style: dots;
+  --paper-offset: 0px;
+  --note-line: 24.8px;   /* 16px body × 1.55 line-height */
+  --note-pad-top: 6px;
 }
 
 /* ---- Themes live in plugins/builtin/core-themes/*.css (one per theme).
@@ -279,7 +282,7 @@ body {
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 #peek-title { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#peek-body { background-image: var(--paper-image); background-size: var(--paper-size); }
+#peek-body { background-image: var(--paper-image); background-size: var(--paper-size); background-position: 0 var(--paper-offset); }
 
 /* ---- markdown rendered inside the composer ---- */
 #note h1 { font-size: 20px; margin: 8px 0 6px; }
@@ -713,6 +716,7 @@ body {
   /* dotted paper by default; Ruled/Grid override these in their theme CSS */
   background-image: var(--paper-image);
   background-size: var(--paper-size);
+  background-position: 0 var(--paper-offset);
 }
 
 #note {
@@ -722,9 +726,9 @@ body {
   border: 0;
   outline: 0;
   background: transparent;
-  padding: 6px 16px 10px;
+  padding: var(--note-pad-top) 16px 10px;
   font-size: 16px;
-  line-height: 1.55;
+  line-height: var(--note-line);
   color: var(--text);
   font-family: inherit;
   overflow-wrap: break-word;
