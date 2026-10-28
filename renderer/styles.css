@@ -23,14 +23,15 @@
   --pop: #fbf6ea;
   --tile: #efe4d0;
   --danger: #b03a2e;
-  --dots: rgba(122, 92, 55, 0.16);
-  --rule: rgba(122, 92, 55, 0.16);
-  --paper-image: radial-gradient(circle, var(--dots) 1.1px, transparent 1.4px);
-  --paper-size: 20px 20px;
-  --paper-style: dots;
-  --paper-offset: 0px;
   --note-line: 24.8px;   /* 16px body × 1.55 line-height */
   --note-pad-top: 6px;
+  --dots: rgba(122, 92, 55, 0.16);
+  --rule: rgba(122, 92, 55, 0.16);
+  --paper-style: dots;
+  --paper-offset: var(--note-pad-top);
+  /* One row of dots per text line, just inside the line boundaries. */
+  --paper-image: radial-gradient(circle at 50% calc(100% - 1.2px), var(--dots) 1.1px, transparent 1.4px);
+  --paper-size: 20px var(--note-line);
 }
 
 /* ---- Themes live in plugins/builtin/core-themes/*.css (one per theme).

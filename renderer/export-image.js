@@ -87,13 +87,17 @@
     ctx.clip();
     if (style === 'dots') {
       ctx.fillStyle = dots;
-      for (let gy = y + 10; gy < y + h; gy += 20) {
+      const step = lineH;
+      const first = bodyTop + lineH - 2;
+      const row = (gy) => {
         for (let gx = x + 10; gx < x + w; gx += 20) {
           ctx.beginPath();
           ctx.arc(gx, gy, 1.2, 0, Math.PI * 2);
           ctx.fill();
         }
-      }
+      };
+      for (let gy = first; gy < y + h; gy += step) row(gy);
+      for (let gy = first - step; gy > y; gy -= step) row(gy);
     } else if (style === 'lines' || style === 'grid') {
       ctx.strokeStyle = rule;
       ctx.lineWidth = 1;
