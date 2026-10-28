@@ -23,7 +23,7 @@
   --pop: #fbf6ea;
   --tile: #efe4d0;
   --danger: #b03a2e;
-  --note-line: 24.8px;   /* 16px body × 1.55 line-height */
+  --note-line: 25px;     /* whole pixels: 50 device px at 2×, so the paper grid cannot drift */
   --note-pad-top: 6px;
   --dots: rgba(122, 92, 55, 0.16);
   --rule: rgba(122, 92, 55, 0.16);
