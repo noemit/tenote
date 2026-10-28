@@ -283,6 +283,18 @@ body {
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 #peek-title { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Screenshot capture: keep the card, paper and note; hide chrome and popovers. */
+body.capture-mode #topbar,
+body.capture-mode #recents,
+body.capture-mode #settings-pop,
+body.capture-mode #plugins-pop,
+body.capture-mode #tips-pop,
+body.capture-mode #plugin-modal,
+body.capture-mode #chip-pop,
+body.capture-mode #note-menu,
+body.capture-mode #toast,
+body.capture-mode #welcome { display: none !important; }
 #peek-body { background-image: var(--paper-image); background-size: var(--paper-size); background-position: 0 var(--paper-offset); }
 
 /* ---- markdown rendered inside the composer ---- */

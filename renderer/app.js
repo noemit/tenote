@@ -344,8 +344,8 @@
       items.push({ label: note.snoozed ? 'Move back to recents' : 'Move to bottom', act: () => setNoteFlag(note, 'snoozed') });
     }
     items.push({ sep: true });
-    if (window.__tenoteExportImage) {
-      items.push({ label: 'Copy as image', act: () => copyNoteImage(note.id) });
+    if (note.id === state.id && typeof jot.captureNote === 'function') {
+      items.push({ label: 'Copy as image', act: () => copyNoteImage() });
     }
     if (typeof jot.revealNote === 'function') {
       items.push({ label: 'Reveal in Finder', act: () => { try { jot.revealNote(note.id); } catch (e) { /* ignore */ } } });
@@ -394,27 +394,28 @@
     }
   }
 
-  async function copyNoteImage(id) {
+  async function copyNoteImage() {
+    if (!ta.textContent && !ta.querySelector('img')) { showToast('Nothing to copy'); return; }
+    if (typeof jot.captureNote !== 'function') { showToast('Not available in this build'); return; }
+    closePeek();
+    closeNoteMenu(false);
+    closeSettings();
+    closeTips();
+    if (panelOpen) closePanel();
+    // Hide the topbar and the recents strip, then snapshot the card exactly as
+    // rendered. No re-typesetting, no promoted first line, no added wordmark.
+    document.body.classList.add('capture-mode');
+    let res = null;
     try {
-      let md = '';
-      let tags = [];
-      if (id && id === state.id) {
-        md = htmlToMd(ta);
-        tags = extractTags(md);
-      } else {
-        const n = await jot.readNote(id);
-        if (!n) { showToast('Note not found'); return; }
-        md = n.body || '';
-        tags = n.tags || extractTags(md);
-      }
-      if (!md.trim()) { showToast('Nothing to copy'); return; }
-      showToast('Rendering image…', 1200);
-      const ok = await window.__tenoteExportImage(md, { tags });
-      showToast(ok ? 'Copied to clipboard' : 'Could not copy image');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const r = document.getElementById('app').getBoundingClientRect();
+      res = await jot.captureNote({ x: r.left, y: r.top, width: r.width, height: r.height });
     } catch (e) {
-      console.error('copy as image failed', e);
-      showToast('Could not copy image');
+      console.error('capture failed', e);
+    } finally {
+      document.body.classList.remove('capture-mode');
     }
+    showToast(res && res.ok ? 'Copied to clipboard' : 'Could not copy image');
   }
 
   async function openPeek(id) {
@@ -825,6 +826,13 @@
       closePeek();
       return;
     }
+    // Built-in capture wins over any plugin that registers the same shortcut.
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'e' || e.key === 'E')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      copyNoteImage();
+      return;
+    }
     if (window.__tenoteKeys && window.__tenoteKeys(e)) return;
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -847,9 +855,6 @@
       if (panelOpen) return;
       e.preventDefault();
       document.execCommand('italic');
-    } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'e' || e.key === 'E')) {
-      e.preventDefault();
-      copyNoteImage(peekId || state.id);
     }
   });
 

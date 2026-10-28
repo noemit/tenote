@@ -548,6 +548,24 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
             guard let clean = NoteStore.safeId(a["id"] as? String) else { return reply(["ok": false]) }
             NSWorkspace.shared.activateFileViewerSelecting([store.file(for: clean)])
             reply(["ok": true])
+        case "note:capture":
+            guard let card = card else { return reply(["ok": false, "error": "no window"]) }
+            let x = (a["x"] as? NSNumber)?.doubleValue ?? 0
+            let y = (a["y"] as? NSNumber)?.doubleValue ?? 0
+            let w = (a["width"] as? NSNumber)?.doubleValue ?? 0
+            let h = (a["height"] as? NSNumber)?.doubleValue ?? 0
+            guard w > 0, h > 0 else { return reply(["ok": false, "error": "bad rect"]) }
+            let config = WKSnapshotConfiguration()
+            config.rect = CGRect(x: x, y: y, width: w, height: h)
+            card.webView.takeSnapshot(with: config) { [weak self] image, error in
+                guard let image = image else {
+                    self?.logger.warn("app", "note capture failed", ["error": error?.localizedDescription ?? "unknown"])
+                    return reply(["ok": false, "error": error?.localizedDescription ?? "capture failed"])
+                }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.writeObjects([image])
+                reply(["ok": true])
+            }
         case "plugin:invoke":
             let name = (a["plugin"] as? String) ?? "", m = (a["method"] as? String) ?? ""
             let finish: (Result<Any?, JSRuntime.JSError>) -> Void = { [weak self] r in

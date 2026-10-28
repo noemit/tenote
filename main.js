@@ -866,6 +866,21 @@ function setupIpc() {
     shell.showItemInFolder(noteFile(clean));
     return { ok: true };
   });
+  ipcMain.handle('note:capture', async (e, rect) => {
+    try {
+      if (!win || win.isDestroyed()) return { ok: false, error: 'no window' };
+      const r = rect || {};
+      const x = Math.max(0, Math.round(Number(r.x) || 0));
+      const y = Math.max(0, Math.round(Number(r.y) || 0));
+      const width = Math.max(1, Math.round(Number(r.width) || 0));
+      const height = Math.max(1, Math.round(Number(r.height) || 0));
+      const image = await win.webContents.capturePage({ x, y, width, height });
+      clipboard.writeImage(image);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: String(err && err.message || err) };
+    }
+  });
   ipcMain.handle('note:attach', (e, payload) => wrapIpc('note:attach', payload, attachImage));
 
   ipcMain.handle('plugin:invoke', async (e, payload) => {
