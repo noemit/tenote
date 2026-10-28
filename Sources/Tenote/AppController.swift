@@ -60,13 +60,29 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
 
     func applicationDidFinishLaunching(_ notification: Notification) {
 #if MAS
-        // Sandbox: .documentDirectory is the container. Resolve the user's chosen
-        // notes folder (security-scoped bookmark) before anything reads notes.
-        if let url = NotesLocation.resolve(userDataDir: paths.userDataDir, logger: logger) {
+        // Sandbox: .documentDirectory is the container. Never silently use it:
+        // resolve the bookmark, or make the user choose a folder (or quit).
+        var chosenFolder: URL?
+        while chosenFolder == nil {
+            switch NotesLocation.resolve(userDataDir: paths.userDataDir, logger: logger) {
+            case .resolved(let url):
+                chosenFolder = url
+            case .needsFolder(let reason):
+                guard let url = askForFolder(title: "Where should Tenote keep your notes?",
+                                             reason: reason,
+                                             startAt: nil) else { return }
+                chosenFolder = url
+            case .unavailable(let reason):
+                guard let url = askForFolder(title: "Your notes folder is unavailable",
+                                             reason: reason,
+                                             startAt: paths.notesDir.deletingLastPathComponent()) else { return }
+                chosenFolder = url
+            }
+        }
+        if let url = chosenFolder {
             paths.notesDir = url
             store = NoteStore(notesDir: url, logger: logger)
-        } else {
-            logger.warn("app", "no notes folder selected — using container Documents")
+            logger.info("app", "notes folder ready", ["path": url.path])
         }
 #else
         if SocketServer.send("show", to: paths.socketPath, timeout: 1) != nil {
@@ -111,6 +127,52 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showWindow()
         return false
+    }
+
+    /// The MAS launch gate: choose a folder, or quit. Never proceed with the
+    /// container as a silent fallback. The alert reappears if the panel is
+    /// cancelled, so a missing folder can't look like data loss.
+    private func askForFolder(title: String, reason: String, startAt: URL?) -> URL? {
+        while true {
+            let alert = NSAlert()
+            alert.messageText = title
+            alert.informativeText = reason
+            alert.addButton(withTitle: "Choose Folder")
+            alert.addButton(withTitle: "Quit")
+            NSApp.activate(ignoringOtherApps: true)
+            if alert.runModal() != .alertFirstButtonReturn {
+                logger.info("app", "no notes folder chosen — quitting")
+                NSApp.terminate(nil)
+                return nil
+            }
+            if let url = NotesLocation.choose(userDataDir: paths.userDataDir, logger: logger, startAt: startAt) {
+                return url
+            }
+        }
+    }
+
+    /// MAS-only tray action. Saves the current note against the old store first,
+    /// then swaps the store and reloads the renderer against the new folder.
+    private func changeNotesFolder() {
+        let proceed: () -> Void = { [weak self] in
+            guard let self = self else { return }
+            let start = self.paths.notesDir.deletingLastPathComponent()
+            guard let url = NotesLocation.choose(userDataDir: self.paths.userDataDir,
+                                                 logger: self.logger,
+                                                 startAt: start) else { return }
+            self.paths.notesDir = url
+            self.store = NoteStore(notesDir: url, logger: self.logger)
+            self.logger.info("app", "notes folder changed", ["path": url.path])
+            self.rebuildTrayMenu()
+            self.card?.webView.reload()
+        }
+        if let card = card {
+            card.webView.evaluateJavaScript("window.__tenoteUiHooks ? window.__tenoteUiHooks.flushSave() : null") { _, _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { proceed() }
+            }
+        } else {
+            proceed()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -702,6 +764,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { self?.sendToRenderer("goto", "history") }
         }
         add(menu, "Open Notes Folder") { [weak self] in if let s = self { s.openFolder(s.paths.notesDir) } }
+#if MAS
+        add(menu, "Change Notes Folder…") { [weak self] in self?.changeNotesFolder() }
+#endif
         let items = host?.trayItems ?? []
         if !items.isEmpty {
             menu.addItem(.separator())
