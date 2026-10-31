@@ -64,6 +64,48 @@ final class NoteStoreTests: XCTestCase {
         XCTAssertNil(s.imageFile(forEncodedPath: evil))
     }
 
+    @discardableResult
+    private func makeOldImage(_ s: NoteStore, _ name: String) -> URL {
+        let fm = FileManager.default
+        try? fm.createDirectory(at: s.notesDir, withIntermediateDirectories: true)
+        try? fm.createDirectory(at: s.imagesDir, withIntermediateDirectories: true)
+        let p = s.imagesDir.appendingPathComponent(name)
+        fm.createFile(atPath: p.path, contents: Data([0x89, 0x50, 0x4E, 0x47]))
+        try? fm.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -(8 * 24 * 60 * 60))], ofItemAtPath: p.path)
+        return p
+    }
+
+    func testSweepKeepsReferencedImageAndRemovesOldOrphan() {
+        let s = store()
+        let fm = FileManager.default
+        let referenced = makeOldImage(s, "img-abc-1234.png")
+        let orphan = makeOldImage(s, "img-def-5678.png")
+        try? "![x](images/img-abc-1234.png)".write(to: s.notesDir.appendingPathComponent("note.md"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(s.sweepOrphanImages(), 1)
+        XCTAssertTrue(fm.fileExists(atPath: referenced.path))
+        XCTAssertFalse(fm.fileExists(atPath: orphan.path))
+    }
+
+    func testSweepAbortsWhenAnyNoteIsUnreadable() {
+        let s = store()
+        let fm = FileManager.default
+        let orphan = makeOldImage(s, "img-abc-1234.png")
+        // Invalid UTF-8: the reference scan cannot see this note, so no image is safe to delete.
+        fm.createFile(atPath: s.notesDir.appendingPathComponent("bad.md").path, contents: Data([0xFF, 0xFE, 0x00]))
+        XCTAssertEqual(s.sweepOrphanImages(), 0)
+        XCTAssertTrue(fm.fileExists(atPath: orphan.path))
+    }
+
+    func testSweepAbortsWhenNotesAreOffloaded() {
+        let s = store()
+        let fm = FileManager.default
+        let orphan = makeOldImage(s, "img-abc-1234.png")
+        // iCloud replaced an offloaded note with a placeholder; its references are invisible.
+        fm.createFile(atPath: s.notesDir.appendingPathComponent(".offloaded.md.icloud").path, contents: Data())
+        XCTAssertEqual(s.sweepOrphanImages(), 0)
+        XCTAssertTrue(fm.fileExists(atPath: orphan.path))
+    }
+
     func testAcceleratorParsing() {
         let a = Accelerator("Alt+.")
         XCTAssertEqual(a?.keyCode, 47)

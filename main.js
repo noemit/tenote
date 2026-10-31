@@ -1216,14 +1216,25 @@ const SWEEP_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 async function sweepOrphanImages() {
   const imgDir = path.join(NOTES_DIR, 'images');
   if (!fs.existsSync(imgDir)) return;
+  // Never decide an image is orphaned from a partial view of the notes: an
+  // unreadable note, or one offloaded by iCloud (its .md replaced by a .icloud
+  // placeholder), hides its image references.
+  const entries = await fs.promises.readdir(NOTES_DIR);
+  if (entries.some((f) => f.endsWith('.icloud'))) {
+    logger.info('note', 'image sweep skipped: some notes are not downloaded');
+    return;
+  }
   const refs = new Set();
-  const noteFiles = (await fs.promises.readdir(NOTES_DIR)).filter((f) => f.endsWith('.md'));
-  await Promise.all(noteFiles.map(async (f) => {
+  for (const f of entries.filter((f) => f.endsWith('.md'))) {
+    let raw;
     try {
-      const raw = await fs.promises.readFile(path.join(NOTES_DIR, f), 'utf8');
-      for (const m of raw.matchAll(/!\[[^\]]*\]\((images\/[^)\s]+)\)/g)) refs.add(m[1]);
-    } catch (e) { /* ignore unreadable notes */ }
-  }));
+      raw = await fs.promises.readFile(path.join(NOTES_DIR, f), 'utf8');
+    } catch (e) {
+      logger.warn('note', 'image sweep skipped: unreadable note', { file: f });
+      return;
+    }
+    for (const m of raw.matchAll(/!\[[^\]]*\]\((images\/[^)\s]+)\)/g)) refs.add(m[1]);
+  }
   let removed = 0;
   for (const f of await fs.promises.readdir(imgDir)) {
     if (!OWN_IMAGE_RE.test(f)) continue;

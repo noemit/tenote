@@ -301,10 +301,28 @@ public final class NoteStore {
     public func sweepOrphanImages() -> Int {
         let fm = FileManager.default
         guard fm.fileExists(atPath: imagesDir.path) else { return 0 }
+        // Never decide an image is orphaned from a partial view of the notes.
+        // A note can be unreadable, or offloaded by iCloud (its .md replaced by
+        // a .icloud placeholder); either way its image references are invisible
+        // here, so deleting would lose data. Abort the whole sweep instead.
+        let entries: [String]
+        do {
+            entries = try fm.contentsOfDirectory(atPath: notesDir.path)
+        } catch {
+            logger.warn("note", "image sweep skipped: notes folder unreadable", ["error": error.localizedDescription])
+            return 0
+        }
+        if entries.contains(where: { $0.hasSuffix(".icloud") }) {
+            logger.info("note", "image sweep skipped: some notes are not downloaded")
+            return 0
+        }
         var refs = Set<String>()
         let refRe = try! NSRegularExpression(pattern: "!\\[[^\\]]*\\]\\((images/[^)\\s]+)\\)")
-        for f in mdFiles() {
-            guard let raw = try? String(contentsOf: notesDir.appendingPathComponent(f), encoding: .utf8) else { continue }
+        for f in entries where f.hasSuffix(".md") {
+            guard let raw = try? String(contentsOf: notesDir.appendingPathComponent(f), encoding: .utf8) else {
+                logger.warn("note", "image sweep skipped: unreadable note", ["file": f])
+                return 0
+            }
             let ns = raw as NSString
             for m in refRe.matches(in: raw, range: NSRange(location: 0, length: ns.length)) {
                 refs.insert(ns.substring(with: m.range(at: 1)))
