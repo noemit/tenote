@@ -36,6 +36,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
     private var lastToggleAt = Date.distantPast
     private var trayMenuOpen = false
     private var isFirstSession = false
+    private var notesReady = true
+    private var notesFolderReason: String?
     private var activeShortcut: String?
     private var pluginShortcuts: [String: Set<String>] = [:]
     private let ipc = IpcBridge()
@@ -61,28 +63,16 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
     func applicationDidFinishLaunching(_ notification: Notification) {
 #if MAS
         // Sandbox: .documentDirectory is the container. Never silently use it:
-        // resolve the bookmark, or make the user choose a folder (or quit).
-        var chosenFolder: URL?
-        while chosenFolder == nil {
-            switch NotesLocation.resolve(userDataDir: paths.userDataDir, logger: logger) {
-            case .resolved(let url):
-                chosenFolder = url
-            case .needsFolder(let reason):
-                guard let url = askForFolder(title: "Where should Tenote keep your notes?",
-                                             reason: reason,
-                                             startAt: nil) else { return }
-                chosenFolder = url
-            case .unavailable(let reason):
-                guard let url = askForFolder(title: "Your notes folder is unavailable",
-                                             reason: reason,
-                                             startAt: paths.notesDir.deletingLastPathComponent()) else { return }
-                chosenFolder = url
-            }
-        }
-        if let url = chosenFolder {
-            paths.notesDir = url
-            store = NoteStore(notesDir: url, logger: logger)
-            logger.info("app", "notes folder ready", ["path": url.path])
+        // resolve the bookmark, or open the in-card onboarding to choose one.
+        switch NotesLocation.resolve(userDataDir: paths.userDataDir, logger: logger) {
+        case .resolved(let url):
+            adoptNotesFolder(url)
+        case .needsFolder:
+            notesReady = false
+            notesFolderReason = nil
+        case .unavailable(let reason):
+            notesReady = false
+            notesFolderReason = reason
         }
 #else
         if SocketServer.send("show", to: paths.socketPath, timeout: 1) != nil {
@@ -94,6 +84,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
             "version": version, "platform": "darwin", "shortcut": builtinShortcut ?? NSNull(),
             "notesDir": notesDir, "socket": paths.socketPath, "logFile": logger.logFile.path,
             "hideOnBlur": settings.hideOnBlur, "launchAtLogin": settings.launchAtLogin,
+            "notesReady": notesReady,
         ])
         installMainMenu()
         applyDockIcon()
@@ -121,6 +112,12 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
             logger.info("app", "first run — showing window to greet")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.showWindow() }
         }
+#if MAS
+        // The onboarding lives in the card; show it even on a later launch.
+        if !notesReady {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.showWindow() }
+        }
+#endif
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in self?.maybeSweepImages() }
     }
 
@@ -129,26 +126,12 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
         return false
     }
 
-    /// The MAS launch gate: choose a folder, or quit. Never proceed with the
-    /// container as a silent fallback. The alert reappears if the panel is
-    /// cancelled, so a missing folder can't look like data loss.
-    private func askForFolder(title: String, reason: String, startAt: URL?) -> URL? {
-        while true {
-            let alert = NSAlert()
-            alert.messageText = title
-            alert.informativeText = reason
-            alert.addButton(withTitle: "Choose Folder")
-            alert.addButton(withTitle: "Quit")
-            NSApp.activate(ignoringOtherApps: true)
-            if alert.runModal() != .alertFirstButtonReturn {
-                logger.info("app", "no notes folder chosen — quitting")
-                NSApp.terminate(nil)
-                return nil
-            }
-            if let url = NotesLocation.choose(userDataDir: paths.userDataDir, logger: logger, startAt: startAt) {
-                return url
-            }
-        }
+    private func adoptNotesFolder(_ url: URL) {
+        paths.notesDir = url
+        store = NoteStore(notesDir: url, logger: logger)
+        notesReady = true
+        notesFolderReason = nil
+        logger.info("app", "notes folder ready", ["path": url.path])
     }
 
     /// MAS-only tray action. Saves the current note against the old store first,
@@ -160,9 +143,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
             guard let url = NotesLocation.choose(userDataDir: self.paths.userDataDir,
                                                  logger: self.logger,
                                                  startAt: start) else { return }
-            self.paths.notesDir = url
-            self.store = NoteStore(notesDir: url, logger: self.logger)
-            self.logger.info("app", "notes folder changed", ["path": url.path])
+            self.adoptNotesFolder(url)
             self.rebuildTrayMenu()
             self.card?.webView.reload()
         }
@@ -492,7 +473,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
         case "window:dragEnd": card.stopDrag(); reply(true)
         case "window:ensureSize": reply(card.ensureSize(a))
         case "state:get":
-            reply(["notesDir": notesDir, "shortcut": shortcutLabel, "windowVisible": card.isVisible, "firstRun": isFirstSession])
+            reply(["notesDir": notesDir, "shortcut": shortcutLabel, "windowVisible": card.isVisible,
+                   "firstRun": isFirstSession, "mas": isMAS,
+                   "needsFolder": !notesReady, "folderReason": notesFolderReason ?? NSNull()])
         case "settings:get": reply(settingsDict())
         case "settings:setHideOnBlur":
             settings.hideOnBlur = (args as? Bool) ?? false; saveSettings(); rebuildTrayMenu()
@@ -526,6 +509,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
         case "note:attach":
             let mime = (a["mime"] as? String) ?? "", b64 = (a["base64"] as? String) ?? ""
             async(reply) { $0.store.attachImage(mime: mime, base64: b64) }
+        case "notes:chooseFolder":
+            guard let url = NotesLocation.choose(userDataDir: paths.userDataDir, logger: logger) else {
+                return reply(["ok": false])
+            }
+            adoptNotesFolder(url)
+            rebuildTrayMenu()
+            reply(["ok": true, "path": url.path])
+            if let card = card { card.webView.reload() }
         case "note:flag":
             guard let clean = NoteStore.safeId(a["id"] as? String) else { return reply(["ok": false, "error": "bad id"]) }
             let flag = (a["flag"] as? String) ?? ""
@@ -781,7 +772,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Plug
             self?.showWindow()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { self?.sendToRenderer("goto", "history") }
         }
-        add(menu, "Open Notes Folder") { [weak self] in if let s = self { s.openFolder(s.paths.notesDir) } }
+        add(menu, "Open Notes Folder", enabled: notesReady) { [weak self] in if let s = self { s.openFolder(s.paths.notesDir) } }
 #if MAS
         add(menu, "Change Notes Folder…") { [weak self] in self?.changeNotesFolder() }
 #endif

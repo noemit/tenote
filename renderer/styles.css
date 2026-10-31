@@ -278,11 +278,56 @@ body {
   opacity: 0;
   pointer-events: none;
   transition: opacity .16s ease, transform .16s ease;
-  z-index: 70;
+  z-index: 90;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 #peek-title { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* First-run / missing-folder onboarding. */
+#onboarding {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 34px;
+  text-align: center;
+  overflow-y: auto;
+  background-color: var(--bg);
+  background-image: var(--paper-image);
+  background-size: var(--paper-size);
+  background-position: 0 var(--paper-offset);
+}
+body.onboarding #topbar,
+body.onboarding #composer,
+body.onboarding #panel,
+body.onboarding #pview,
+body.onboarding #peek,
+body.onboarding #welcome,
+body.onboarding #note-menu { display: none !important; }
+.ob-icon { width: 54px; height: 54px; flex: 0 0 auto; }
+.ob-title { font-size: 18px; font-weight: 700; color: var(--text); }
+.ob-body { max-width: 340px; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.ob-actions { display: flex; gap: 8px; margin-top: 4px; }
+.ob-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 9px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.ob-btn:hover { background: var(--hover); }
+.ob-btn:disabled { opacity: .5; cursor: default; }
+.ob-btn.ob-primary { background: var(--accent); border-color: var(--accent); color: var(--bg-solid); }
+.ob-btn.ob-primary:hover { filter: brightness(1.05); }
+.ob-foot { font-size: 10.5px; color: var(--placeholder); margin-top: 2px; }
 
 /* Screenshot capture: keep the card, paper and note; hide chrome and popovers. */
 body.capture-mode #topbar,

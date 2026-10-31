@@ -31,6 +31,9 @@
   const peekEl = $('#peek');
   const peekTitleEl = $('#peek-title');
   const peekBodyEl = $('#peek-body');
+  const onboardingEl = $('#onboarding');
+  const onboardingTitleEl = $('#onboarding-title');
+  const onboardingBodyEl = $('#onboarding-body');
 
   const state = { id: null, created: null, sessionCreated: false, lastText: '' };
 
@@ -452,6 +455,22 @@
 
 
 
+  function showOnboarding(reason) {
+    if (!onboardingEl) return;
+    document.body.classList.add('onboarding');
+    const missing = !!reason;
+    onboardingTitleEl.textContent = missing ? 'Your notes folder is unavailable' : 'Where should your notes live?';
+    onboardingBodyEl.textContent = missing
+      ? reason
+      : 'Tenote saves every note as a plain Markdown file. Choose a folder you can see in Finder — for example Documents/Tenote Notes. Your notes stay yours.';
+    const choose = $('#btn-onboarding-choose');
+    if (choose) {
+      choose.textContent = missing ? 'Choose Another Folder…' : 'Choose Folder…';
+      choose.focus();
+    }
+    onboardingEl.classList.remove('hidden');
+  }
+
   // ---- settings popover ----------------------------------------------------
   function applyTheme(t) {
     document.body.dataset.theme = t || 'latte';
@@ -764,10 +783,14 @@
   async function init() {
     try {
       const st = await jot.getState();
-      if (st.shortcut) hintEl.textContent = `${st.shortcut} toggles · notes → ${st.notesDir}`;
-      else hintEl.textContent = `notes → ${st.notesDir}`;
-      if (st.firstRun) welcomeEl.classList.remove('hidden');
-      if (st.windowVisible) ta.focus();
+      if (st.needsFolder) {
+        showOnboarding(st.folderReason || '');
+      } else {
+        if (st.shortcut) hintEl.textContent = `${st.shortcut} toggles · notes → ${st.notesDir}`;
+        else hintEl.textContent = `notes → ${st.notesDir}`;
+        if (st.firstRun) welcomeEl.classList.remove('hidden');
+        if (st.windowVisible) ta.focus();
+      }
       const s = await jot.getSettings();
       applyTheme(s.theme);
       applyHideBrand(s.hideBrand);
@@ -980,6 +1003,24 @@
       closeNoteMenu(false);
     }
   });
+
+  const onboardingChoose = $('#btn-onboarding-choose');
+  if (onboardingChoose) {
+    onboardingChoose.addEventListener('click', async () => {
+      if (typeof jot.chooseNotesFolder !== 'function') { showToast('Not available in this build'); return; }
+      onboardingChoose.disabled = true;
+      try {
+        const r = await jot.chooseNotesFolder();
+        if (!r || !r.ok) showToast('Choose a folder to keep your notes');
+      } catch (e) {
+        showToast('Could not open the folder picker');
+      } finally {
+        onboardingChoose.disabled = false;
+      }
+    });
+  }
+  const onboardingQuit = $('#btn-onboarding-quit');
+  if (onboardingQuit) onboardingQuit.addEventListener('click', () => { try { jot.quit(); } catch (e) { /* ignore */ } });
 
   $('#btn-peek-close').addEventListener('click', closePeek);
   $('#btn-peek-edit').addEventListener('click', () => {

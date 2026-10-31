@@ -47,6 +47,7 @@
     setNoteFlag: (id, flag, value) => call('note:flag', { id, flag, value }),
     revealNote: (id) => call('note:reveal', id),
     captureNote: (rect) => call('note:capture', rect),
+    chooseNotesFolder: () => call('notes:chooseFolder'),
     attachImage: (payload) => call('note:attach', payload),
     pathForFile: (f) => (f && droppedPaths.get(f.name)) || '',
     openNotesFolder: () => call('notes:openFolder'),

@@ -129,6 +129,24 @@
       <div id="peek-body" class="pview-body"></div>
     </section>
 
+    <section id="onboarding" class="onboarding hidden">
+      <svg class="ob-icon" viewBox="0 0 64 64" aria-hidden="true">
+        <rect x="5" y="5" width="54" height="54" rx="14" fill="var(--surface)" stroke="var(--border)"/>
+        <g fill="var(--dots)">
+          <circle cx="19" cy="19" r="2.1"/><circle cx="32" cy="19" r="2.1"/><circle cx="45" cy="19" r="2.1"/>
+          <circle cx="19" cy="32" r="2.1"/><circle cx="32" cy="32" r="2.1"/><circle cx="45" cy="32" r="2.1"/>
+          <circle cx="19" cy="45" r="2.1"/><circle cx="32" cy="45" r="2.1"/><circle cx="45" cy="45" r="2.1"/>
+        </g>
+      </svg>
+      <div id="onboarding-title" class="ob-title">Where should your notes live?</div>
+      <div id="onboarding-body" class="ob-body">Tenote saves every note as a plain Markdown file. Choose a folder you can see in Finder — for example Documents/Tenote Notes. Your notes stay yours.</div>
+      <div class="ob-actions">
+        <button id="btn-onboarding-choose" class="ob-btn ob-primary">Choose Folder…</button>
+        <button id="btn-onboarding-quit" class="ob-btn">Quit</button>
+      </div>
+      <div class="ob-foot">No accounts. No cloud. No tracking.</div>
+    </section>
+
     <div id="welcome" class="welcome hidden">
       <div class="welcome-card">
         <div class="welcome-title">Welcome to Tenote</div>
